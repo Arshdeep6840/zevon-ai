@@ -1,4 +1,4 @@
-"""Filesystem tools. Everything is sandboxed to JARVIS_ALLOWED_FOLDERS (deny by default)."""
+"""Filesystem tools. Everything is sandboxed to ZEVON_ALLOWED_FOLDERS (deny by default)."""
 import hashlib
 import shutil
 from collections import defaultdict
@@ -25,7 +25,7 @@ def safe_path(path: str) -> Path:
         r = Path(root).expanduser().resolve()
         if p == r or r in p.parents:
             return p
-    raise PermissionError(f"{p} is outside the authorized folders. Set JARVIS_ALLOWED_FOLDERS.")
+    raise PermissionError(f"{p} is outside the authorized folders. Set ZEVON_ALLOWED_FOLDERS.")
 
 
 def _category(p: Path) -> str:

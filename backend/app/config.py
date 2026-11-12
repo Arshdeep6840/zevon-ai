@@ -19,20 +19,20 @@ _load_dotenv()
 
 
 def _folders() -> list[str]:
-    raw = os.getenv("JARVIS_ALLOWED_FOLDERS", "")
+    raw = os.getenv("ZEVON_ALLOWED_FOLDERS", "")
     return [p for p in raw.split(os.pathsep) if p]
 
 
 @dataclass
 class Settings:
-    llm_provider: str = field(default_factory=lambda: os.getenv("JARVIS_LLM_PROVIDER", "ollama"))
+    llm_provider: str = field(default_factory=lambda: os.getenv("ZEVON_LLM_PROVIDER", "ollama"))
     ollama_host: str = field(default_factory=lambda: os.getenv("OLLAMA_HOST", "http://localhost:11434"))
-    model: str = field(default_factory=lambda: os.getenv("JARVIS_MODEL", "qwen3:8b"))
-    db_path: str = field(default_factory=lambda: os.getenv("JARVIS_DB", str(Path(__file__).resolve().parents[2] / "data" / "jarvis.db")))
-    api_token: str = field(default_factory=lambda: os.getenv("JARVIS_API_TOKEN", ""))
+    model: str = field(default_factory=lambda: os.getenv("ZEVON_MODEL", "qwen3:8b"))
+    db_path: str = field(default_factory=lambda: os.getenv("ZEVON_DB", str(Path(__file__).resolve().parents[2] / "data" / "zevon.db")))
+    api_token: str = field(default_factory=lambda: os.getenv("ZEVON_API_TOKEN", ""))
     allowed_folders: list[str] = field(default_factory=_folders)
-    max_agent_steps: int = field(default_factory=lambda: int(os.getenv("JARVIS_MAX_STEPS", "6")))
-    google_token_file: str = field(default_factory=lambda: os.getenv("JARVIS_GOOGLE_TOKEN", str(Path(__file__).resolve().parents[2] / "data" / "google_token.json")))
+    max_agent_steps: int = field(default_factory=lambda: int(os.getenv("ZEVON_MAX_STEPS", "6")))
+    google_token_file: str = field(default_factory=lambda: os.getenv("ZEVON_GOOGLE_TOKEN", str(Path(__file__).resolve().parents[2] / "data" / "google_token.json")))
     frontend_dir: str = str(Path(__file__).resolve().parents[2] / "frontend")
 
 

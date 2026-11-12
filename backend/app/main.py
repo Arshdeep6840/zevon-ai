@@ -1,4 +1,4 @@
-"""OpenJarvis AI backend. Run: uvicorn app.main:app --host 0.0.0.0 --port 8000"""
+"""Zevon AI backend. Run: uvicorn app.main:app --host 0.0.0.0 --port 8000"""
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -13,7 +13,7 @@ from .core.memory import Store
 from .core.memory_tools import register_memory_tools
 from .core.permissions import PermissionPolicy
 from .core.tools import registry
-from .scheduler.runner import JarvisScheduler
+from .scheduler.runner import ZevonScheduler
 
 
 class ChatIn(BaseModel):
@@ -39,7 +39,7 @@ def create_app(cfg: Settings | None = None, llm: LLMProvider | None = None, star
     register_memory_tools(registry, store)
     integrations.load_all()
     engine = AgentEngine(llm or make_provider(cfg), registry, store, policy, cfg.max_agent_steps)
-    scheduler = JarvisScheduler(engine, store) if start_scheduler else None
+    scheduler = ZevonScheduler(engine, store) if start_scheduler else None
 
     @asynccontextmanager
     async def lifespan(app):
@@ -49,7 +49,7 @@ def create_app(cfg: Settings | None = None, llm: LLMProvider | None = None, star
         if scheduler:
             scheduler.stop()
 
-    app = FastAPI(title="OpenJarvis AI", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Zevon AI", version="0.1.0", lifespan=lifespan)
 
     def auth(authorization: str = Header(default="")):
         if cfg.api_token and authorization != f"Bearer {cfg.api_token}":

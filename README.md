@@ -1,6 +1,15 @@
-# OpenJarvis AI
+# Zevon AI
+**Your AI. Your Rules.**
 
-Self-hosted, local-first personal AI assistant: Ollama + FastAPI + a permission-controlled tool layer, with a installable PWA you can open from your phone over Tailscale. (Rename freely; there is an unrelated existing project called OpenJarvis.)
+Zevon is a self-hosted, local-first personal AI assistant: Ollama + FastAPI + a permission-controlled tool layer, with an installable app you can open from your phone over Tailscale.
+
+| Name | What it is |
+|---|---|
+| **Zevon AI** | The product |
+| **Zevon** | The assistant you talk to |
+| **Zevon Core** | The architecture: agent engine, permission policy, memory, tool registry (`backend/app/core`) |
+| **Zevon Mobile** | The installable phone/desktop app (PWA in `frontend/`) |
+| **Zevon Extensions** | The plugin ecosystem: connectors in `backend/app/integrations` and `plugins/` |
 
 ## What works in v0.1 (Phases 1, 2, 5 and part of 3/4)
 - Chat with a local LLM via Ollama, with tool calling and conversation history
@@ -16,10 +25,10 @@ Not built yet (see roadmap): voice (faster-whisper/Piper), YouTube/Calendar/Driv
 ## Quick start
 ```bash
 ollama pull qwen3:8b       # pick a model that fits your RAM/VRAM; keep Ollama running
-cd openjarvis
+cd openzevon
 ./run.sh                   # Windows: run.bat  (creates .env + venv, installs deps, starts server)
 ```
-Edit `.env` (created on first run): set `JARVIS_ALLOWED_FOLDERS` to folders Jarvis may touch and `JARVIS_API_TOKEN` to a long random string, then restart. Open http://localhost:8000.
+Edit `.env` (created on first run): set `ZEVON_ALLOWED_FOLDERS` to folders Zevon may touch and `ZEVON_API_TOKEN` to a long random string, then restart. Open http://localhost:8000.
 
 Try: "List files in <authorized folder>", "Plan how to organize my Downloads", then "Apply it" and approve in the Approvals tab.
 Tests (no Ollama needed): `cd backend && pytest`.
@@ -38,7 +47,7 @@ curl -X POST localhost:8000/api/instructions -H 'Content-Type: application/json'
 Results are stored in the `scheduled-<id>` chat session. (Send `Authorization: Bearer <token>` if you set a token.)
 
 ## Layout
-`backend/app/core` (llm, agent_engine, permissions, memory, tools) · `integrations/` (google, system) · `scheduler/` · `frontend/` · `plugins/` · `docs/`
+`backend/app/core` (Zevon Core: llm, agent_engine, permissions, memory, tools) · `integrations/` (Zevon Extensions: google, system) · `scheduler/` · `frontend/` (Zevon Mobile) · `plugins/` · `docs/`
 
 ## Roadmap
 1. Voice: faster-whisper STT + Piper TTS  2. YouTube/Calendar/Drive connectors  3. Playwright browser tool  4. ChromaDB memory  5. Conditional triggers (Gmail polling)  6. MCP client  7. React/Vite UI, Tauri desktop  8. Encrypt tokens at rest

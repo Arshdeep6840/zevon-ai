@@ -6,7 +6,7 @@ from app.core.memory import Store
 from app.core.agent_engine import AgentEngine
 from app.core.permissions import PermissionPolicy
 from app.core.tools import ToolRegistry
-from app.scheduler.runner import JarvisScheduler
+from app.scheduler.runner import ZevonScheduler
 
 
 def _resp(message):
@@ -45,7 +45,7 @@ def test_scheduler_registers_cron_jobs_and_runs():
             ran.append((session, text))
     store.add_instruction("brief", "scheduled", "Summarize emails", "0 8 * * *")
     store.add_instruction("bad", "scheduled", "x", "not a cron")
-    s = JarvisScheduler(Eng(), store)
+    s = ZevonScheduler(Eng(), store)
     s.reload()
     assert len(s.sched.get_jobs()) == 1
     s._run(store.instructions(kind="scheduled")[0])

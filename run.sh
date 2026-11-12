@@ -7,5 +7,5 @@ cd backend
 [ -d .venv ] || python3 -m venv .venv
 . .venv/bin/activate
 pip install -q -r requirements.txt
-echo "Jarvis running at http://localhost:8000  (make sure Ollama is running)"
+echo "Zevon running at http://localhost:8000  (make sure Ollama is running)"
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

@@ -2,14 +2,14 @@ services:
   ollama:
     image: ollama/ollama
     volumes: [ollama:/root/.ollama]
-  jarvis:
+  zevon:
     build: .
     ports: ["8000:8000"]
     environment:
       OLLAMA_HOST: http://ollama:11434
-      JARVIS_MODEL: qwen3:8b
-      JARVIS_DB: /data/jarvis.db
-      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-change-me}
-    volumes: [jarvis-data:/data]
+      ZEVON_MODEL: qwen3:8b
+      ZEVON_DB: /data/zevon.db
+      ZEVON_API_TOKEN: ${ZEVON_API_TOKEN:-change-me}
+    volumes: [zevon-data:/data]
     depends_on: [ollama]
-volumes: {ollama: {}, jarvis-data: {}}
+volumes: {ollama: {}, zevon-data: {}}

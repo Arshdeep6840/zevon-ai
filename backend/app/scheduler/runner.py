@@ -1,7 +1,7 @@
 """Runs scheduled instructions (cron syntax, e.g. '0 8 * * *') through the agent."""
 
 
-class JarvisScheduler:
+class ZevonScheduler:
     def __init__(self, engine, store):
         from apscheduler.schedulers.background import BackgroundScheduler
         self.engine, self.store = engine, store
