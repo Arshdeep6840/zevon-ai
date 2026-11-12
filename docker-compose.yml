@@ -1,0 +1,15 @@
+services:
+  ollama:
+    image: ollama/ollama
+    volumes: [ollama:/root/.ollama]
+  jarvis:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      JARVIS_MODEL: qwen3:8b
+      JARVIS_DB: /data/jarvis.db
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-change-me}
+    volumes: [jarvis-data:/data]
+    depends_on: [ollama]
+volumes: {ollama: {}, jarvis-data: {}}
