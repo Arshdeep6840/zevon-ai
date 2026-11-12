@@ -15,20 +15,14 @@ Not built yet (see roadmap): voice (faster-whisper/Piper), YouTube/Calendar/Driv
 
 ## Quick start
 ```bash
-# 1. Ollama
-ollama pull qwen3:8b            # pick a model that fits your RAM/VRAM
-
-# 2. Backend
-cp .env.example .env            # edit JARVIS_ALLOWED_FOLDERS, JARVIS_API_TOKEN
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-set -a; source ../.env; set +a
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# 3. Open http://localhost:8000
+ollama pull qwen3:8b       # pick a model that fits your RAM/VRAM; keep Ollama running
+cd openjarvis
+./run.sh                   # Windows: run.bat  (creates .env + venv, installs deps, starts server)
 ```
-Try: "List files in /path/you/authorized", "Plan how to organize my Downloads", then "Apply it" and approve in the Approvals tab.
+Edit `.env` (created on first run): set `JARVIS_ALLOWED_FOLDERS` to folders Jarvis may touch and `JARVIS_API_TOKEN` to a long random string, then restart. Open http://localhost:8000.
+
+Try: "List files in <authorized folder>", "Plan how to organize my Downloads", then "Apply it" and approve in the Approvals tab.
+Tests (no Ollama needed): `cd backend && pytest`.
 
 ### Gmail
 Create an OAuth client (Desktop app) in Google Cloud Console, enable the Gmail API, save it as `data/credentials.json`, then `pip install -r backend/requirements-google.txt && python scripts/google_auth.py`. Restart the backend. Use your own account in testing mode; public distribution triggers Google's restricted-scope verification.
