@@ -1,10 +1,10 @@
-"""Runs scheduled instructions (cron syntax, e.g. '0 8 * * *') through the agent."""
+"""Runs scheduled instructions (cron syntax, e.g. '0 8 * * *') and interval jobs (email trigger polling)."""
 
 
 class ZevonScheduler:
-    def __init__(self, engine, store):
+    def __init__(self, engine, store, notifier=None):
         from apscheduler.schedulers.background import BackgroundScheduler
-        self.engine, self.store = engine, store
+        self.engine, self.store, self.notifier = engine, store, notifier
         self.sched = BackgroundScheduler()
 
     def start(self):
@@ -15,10 +15,14 @@ class ZevonScheduler:
         if self.sched.running:
             self.sched.shutdown(wait=False)
 
+    def add_interval(self, func, minutes: int, job_id: str):
+        self.sched.add_job(func, "interval", minutes=max(1, minutes), id=job_id, replace_existing=True)
+
     def reload(self):
         from apscheduler.triggers.cron import CronTrigger
         for job in self.sched.get_jobs():
-            job.remove()
+            if job.id.startswith("ins-"):
+                job.remove()
         for ins in self.store.instructions(kind="scheduled", enabled_only=True):
             try:
                 trigger = CronTrigger.from_crontab(ins["schedule"])
@@ -29,4 +33,6 @@ class ZevonScheduler:
 
     def _run(self, ins):
         self.store.audit("scheduler", ins["name"], ins["text"], "started")
-        self.engine.run(session=f"scheduled-{ins['id']}", text=ins["text"])
+        reply = self.engine.run(session=f"scheduled-{ins['id']}", text=ins["text"])["reply"]
+        if self.notifier:
+            self.notifier.notify(ins["name"], reply)

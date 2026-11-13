@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zevon AI</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0f172a">
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--text:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--bad:#f87171;--ok:#4ade80}
+@media(prefers-color-scheme:light){:root{--bg:#f1f5f9;--panel:#fff;--text:#0f172a;--mut:#64748b;--acc:#0369a1}}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column}
+header{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--panel)}header h1{font-size:16px;margin:0;flex:1}
+nav button,header button{background:none;border:1px solid var(--mut);color:var(--text);border-radius:6px;padding:5px 10px;cursor:pointer}
+nav button.on{border-color:var(--acc);color:var(--acc)}nav{display:flex;gap:6px;padding:8px 14px}
+main{flex:1;overflow:auto;padding:14px}.msg{max-width:760px;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--panel);white-space:pre-wrap}
+.msg.me{margin-left:auto;background:var(--acc);color:#04202c}.step{font-size:12px;color:var(--mut);margin:-6px 0 10px}
+form{display:flex;gap:8px;padding:10px 14px;background:var(--panel)}input{flex:1;padding:10px;border-radius:8px;border:1px solid var(--mut);background:var(--bg);color:var(--text)}
+.card{background:var(--panel);padding:10px 12px;border-radius:10px;margin-bottom:10px}.card code{display:block;color:var(--mut);margin:4px 0;word-break:break-all}
+.on-kill{background:var(--bad)!important;color:#fff!important}
+</style></head><body>
+<header><h1>Zevon AI <small style="font-weight:400;color:var(--mut)">Your AI. Your Rules.</small></h1><button id="kill">Kill switch</button></header>
+<nav><button data-t="chat" class="on">Chat</button><button data-t="appr">Approvals</button><button data-t="audit">Audit log</button><button data-t="tools">Tools</button></nav>
+<main id="main"></main>
+<form id="f"><input id="q" placeholder="Ask Zevon…" autocomplete="off"><button>Send</button></form>
+<script>
+const $=s=>document.querySelector(s),main=$('#main');let tab='chat',killed=false;
+const tok=()=>localStorage.getItem('zevon_token')||'';
+async function api(p,o={}){const r=await fetch('/api'+p,{...o,headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok()}});
+ if(r.status==401){const t=prompt('API token');if(t){localStorage.setItem('zevon_token',t);return api(p,o)}}return r.json()}
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function bubble(t,me){main.append(el('div','msg'+(me?' me':''),t));main.scrollTop=1e9}
+async function show(){main.replaceChildren();$('#f').style.display=tab=='chat'?'flex':'none';
+ if(tab=='chat'){(await api('/history')).forEach(m=>bubble(m.content,m.role=='user'))}
+ if(tab=='appr'){const a=await api('/approvals');if(!a.length)main.append(el('p','',"Nothing waiting for approval."));
+  a.forEach(x=>{const c=el('div','card');c.append(el('b','',`#${x.id} ${x.tool}`),el('code','',JSON.stringify(x.args)));
+   for(const[k,l]of[['approve','Approve'],['deny','Deny']]){const b=el('button','',l);b.onclick=async()=>{await api(`/approvals/${x.id}/${k}`,{method:'POST'});show()};c.append(b,' ')}main.append(c)})}
+ if(tab=='audit')(await api('/audit')).forEach(x=>{const c=el('div','card');c.append(el('b','',`${x.actor}: ${x.action}`),el('code','',x.detail),el('small','',`${new Date(x.ts*1000).toLocaleString()} — ${x.outcome}`));main.append(c)});
+ if(tab=='tools')(await api('/tools')).forEach(x=>{const c=el('div','card');c.append(el('b','',`${x.name} (${x.risk})`),el('code','',x.description));main.append(c)})}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;document.querySelectorAll('nav button').forEach(n=>n.classList.toggle('on',n==b));show()});
+$('#f').onsubmit=async e=>{e.preventDefault();const t=$('#q').value.trim();if(!t)return;$('#q').value='';bubble(t,1);const th=el('div','msg','Thinking…');main.append(th);
+ const r=await api('/chat',{method:'POST',body:JSON.stringify({message:t})});th.remove();bubble(r.reply||'(no reply)');
+ (r.steps||[]).forEach(s=>main.append(el('div','step',`🔧 ${s.tool} → ${s.status}`)))};
+$('#kill').onclick=async()=>{killed=!killed;const r=await api('/kill',{method:'POST',body:JSON.stringify({active:killed})});$('#kill').classList.toggle('on-kill',r.kill_switch)};
+show();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>

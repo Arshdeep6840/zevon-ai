@@ -1,0 +1,11 @@
+[package]
+name = "zevon-desktop"
+version = "0.2.0"
+description = "Zevon AI desktop app (Your AI. Your Rules.)"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

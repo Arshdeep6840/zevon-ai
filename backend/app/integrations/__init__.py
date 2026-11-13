@@ -1,5 +1,18 @@
+from ..config import settings
+
+
 def load_all():
-    """Import integrations so they register their tools. Add new connectors here (or in plugins/)."""
+    """Import built-in Zevon Extensions so they register their tools."""
     from .system import filesystem  # noqa: F401
-    from .google import gmail
-    gmail.register()
+    from .tools import browser, terminal  # noqa: F401
+    from . import google
+    google.register_all()
+    if settings.notion_token:
+        from .productivity import notion
+        notion.register()
+    if settings.todoist_token:
+        from .productivity import todoist
+        todoist.register()
+    if settings.slack_token:
+        from .productivity import slack
+        slack.register()

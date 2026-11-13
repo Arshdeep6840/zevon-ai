@@ -3,6 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 [ -f .env ] || cp .env.example .env
+if [ ! -d frontend/dist ] && command -v npm >/dev/null; then (cd frontend && npm install --no-audit --no-fund && npm run build); fi
 cd backend
 [ -d .venv ] || python3 -m venv .venv
 . .venv/bin/activate

@@ -1,21 +1,13 @@
-"""Gmail connector (official API + OAuth 2.0). Run scripts/google_auth.py once to authorize.
-Tools are registered only if a token exists. Send is approval-gated; drafts are automatic."""
+"""Gmail connector (official API + OAuth 2.0). Send is approval-gated; drafts are automatic."""
 import base64
 from email.mime.text import MIMEText
-from pathlib import Path
 
-from ...config import settings
 from ...core.tools import registry
-
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly",
-          "https://www.googleapis.com/auth/gmail.compose",
-          "https://www.googleapis.com/auth/gmail.send"]
+from . import auth
 
 
 def _service():
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    return build("gmail", "v1", credentials=Credentials.from_authorized_user_file(settings.google_token_file, SCOPES))
+    return auth.service("gmail", "v1")
 
 
 def _header(msg, name):
@@ -32,14 +24,17 @@ def _body(payload) -> str:
     return ""
 
 
+def list_message_ids(query: str = "is:unread", max_results: int = 10) -> list[str]:
+    res = _service().users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+    return [m["id"] for m in res.get("messages", [])]
+
+
 def search_emails(query: str = "is:unread", max_results: int = 10):
-    svc = _service()
-    ids = svc.users().messages().list(userId="me", q=query, maxResults=max_results).execute().get("messages", [])
-    out = []
-    for m in ids:
-        full = svc.users().messages().get(userId="me", id=m["id"], format="metadata",
+    svc, out = _service(), []
+    for mid in list_message_ids(query, max_results):
+        full = svc.users().messages().get(userId="me", id=mid, format="metadata",
                                           metadataHeaders=["From", "Subject", "Date"]).execute()
-        out.append(f"[{m['id']}] {_header(full, 'from')} | {_header(full, 'subject')} | {_header(full, 'date')}")
+        out.append(f"[{mid}] {_header(full, 'from')} | {_header(full, 'subject')} | {_header(full, 'date')}")
     return "\n".join(out) or "No emails found."
 
 
@@ -64,18 +59,12 @@ def send_email(to: str, subject: str, body: str):
     return f"Email sent to {to}."
 
 
-def _obj(**props):
-    return {"type": "object", "properties": {k: {"type": "string"} for k in props}, "required": list(props)}
-
-
 def register():
-    if not Path(settings.google_token_file).exists():
-        return
     registry.tool("gmail_search_emails", "Search Gmail (Gmail query syntax, e.g. 'is:unread newer_than:1d').",
                   {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}},
                   risk="read")(search_emails)
-    registry.tool("gmail_read_email", "Read one email by id.", _obj(message_id=1), risk="read")(read_email)
-    registry.tool("gmail_create_draft", "Create an email draft (does not send).", _obj(to=1, subject=1, body=1),
-                  risk="safe_write")(create_draft)
-    registry.tool("gmail_send_email", "Send an email. Requires user approval.", _obj(to=1, subject=1, body=1),
-                  risk="sensitive")(send_email)
+    registry.tool("gmail_read_email", "Read one email by id.", auth.obj(message_id="string"), risk="read")(read_email)
+    registry.tool("gmail_create_draft", "Create an email draft (does not send).",
+                  auth.obj(to="string", subject="string", body="string"), risk="safe_write")(create_draft)
+    registry.tool("gmail_send_email", "Send an email. Requires user approval.",
+                  auth.obj(to="string", subject="string", body="string"), risk="sensitive")(send_email)

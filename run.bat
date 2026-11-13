@@ -1,6 +1,7 @@
 @echo off
 cd /d %~dp0
 if not exist .env copy .env.example .env
+if not exist frontend\dist (where npm >nul 2>nul && (pushd frontend & call npm install --no-audit --no-fund & call npm run build & popd))
 cd backend
 if not exist .venv python -m venv .venv
 call .venv\Scripts\activate

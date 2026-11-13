@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, session TEXT, role T
 CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY, text TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS instructions(id INTEGER PRIMARY KEY, name TEXT, kind TEXT, schedule TEXT, text TEXT, enabled INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS approvals(id INTEGER PRIMARY KEY, tool TEXT, args TEXT, session TEXT, status TEXT, result TEXT, ts REAL);
+CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, ts REAL, title TEXT, body TEXT, read INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS seen(key TEXT PRIMARY KEY, ts REAL);
+CREATE TABLE IF NOT EXISTS push_subs(endpoint TEXT PRIMARY KEY, sub TEXT);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, ts REAL, actor TEXT, action TEXT, detail TEXT, outcome TEXT);
 """
 
@@ -96,3 +99,32 @@ class Store:
 
     def audit_log(self, limit=100):
         return self._rows("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))
+
+    # notifications / triggers / push
+    def add_notification(self, title, body):
+        return self._exec("INSERT INTO notifications(ts,title,body) VALUES(?,?,?)", (time.time(), title, str(body)[:2000])).lastrowid
+
+    def notifications(self, unread_only=False, limit=50):
+        sql = "SELECT * FROM notifications" + (" WHERE read=0" if unread_only else "") + " ORDER BY id DESC LIMIT ?"
+        return self._rows(sql, (limit,))
+
+    def mark_notifications_read(self):
+        self._exec("UPDATE notifications SET read=1")
+
+    def is_seen(self, key):
+        return bool(self._rows("SELECT 1 FROM seen WHERE key=?", (key,)))
+
+    def mark_seen(self, key):
+        self._exec("INSERT OR IGNORE INTO seen(key,ts) VALUES(?,?)", (key, time.time()))
+
+    def seen_count(self, prefix):
+        return self._rows("SELECT COUNT(*) AS n FROM seen WHERE key LIKE ?", (prefix + "%",))[0]["n"]
+
+    def add_push_sub(self, endpoint, sub: dict):
+        self._exec("INSERT OR REPLACE INTO push_subs(endpoint,sub) VALUES(?,?)", (endpoint, json.dumps(sub)))
+
+    def push_subs(self):
+        return [json.loads(r["sub"]) for r in self._rows("SELECT sub FROM push_subs")]
+
+    def remove_push_sub(self, endpoint):
+        self._exec("DELETE FROM push_subs WHERE endpoint=?", (endpoint,))

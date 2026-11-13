@@ -1,0 +1,4 @@
+chromadb>=0.5
+mcp>=1.0
+pywebpush>=2.0
+playwright>=1.44

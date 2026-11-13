@@ -43,6 +43,7 @@ def test_scheduler_registers_cron_jobs_and_runs():
     class Eng:
         def run(self, session, text):
             ran.append((session, text))
+            return {"reply": "ok"}
     store.add_instruction("brief", "scheduled", "Summarize emails", "0 8 * * *")
     store.add_instruction("bad", "scheduled", "x", "not a cron")
     s = ZevonScheduler(Eng(), store)

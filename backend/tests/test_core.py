@@ -23,10 +23,10 @@ def sandbox(tmp_path):
 
 
 def make(sandbox, script):
-    cfg = Settings(db_path=":memory:", allowed_folders=[str(sandbox)])
+    cfg = Settings(db_path=":memory:", allowed_folders=[str(sandbox)], vector_memory="off")
     from app.integrations.system import filesystem
     filesystem.settings.allowed_folders = [str(sandbox)]
-    return TestClient(create_app(cfg, FakeLLM(script), start_scheduler=False))
+    return TestClient(create_app(cfg, FakeLLM(script), start_scheduler=False, load_extensions=False))
 
 
 def test_read_tool_runs_automatically(sandbox):

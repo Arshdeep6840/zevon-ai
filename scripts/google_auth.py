@@ -1,13 +1,13 @@
-"""One-time Gmail authorization. Put your OAuth client file (Desktop app type) at data/credentials.json, then:
+"""One-time Google authorization (Gmail, YouTube, Calendar, Drive, Tasks). Put your OAuth client file (Desktop app type) at data/credentials.json, then:
     pip install -r backend/requirements-google.txt && python scripts/google_auth.py
 Test mode with your own Google account is enough for personal use."""
 from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly",
-          "https://www.googleapis.com/auth/gmail.compose",
-          "https://www.googleapis.com/auth/gmail.send"]
+import sys
+sys.path.insert(0, "backend")
+from app.integrations.google.auth import SCOPES
 
 flow = InstalledAppFlow.from_client_secrets_file("data/credentials.json", SCOPES)
 creds = flow.run_local_server(port=0)
