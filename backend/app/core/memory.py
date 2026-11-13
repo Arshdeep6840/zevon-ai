@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS approvals(id INTEGER PRIMARY KEY, tool TEXT, args TEX
 CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, ts REAL, title TEXT, body TEXT, read INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS seen(key TEXT PRIMARY KEY, ts REAL);
 CREATE TABLE IF NOT EXISTS push_subs(endpoint TEXT PRIMARY KEY, sub TEXT);
+CREATE TABLE IF NOT EXISTS session_summaries(session TEXT PRIMARY KEY, summary TEXT, upto_id INTEGER);
+CREATE TABLE IF NOT EXISTS tool_policies(tool TEXT PRIMARY KEY, decision TEXT);
+CREATE TABLE IF NOT EXISTS fcm_tokens(token TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, ts REAL, actor TEXT, action TEXT, detail TEXT, outcome TEXT);
 """
 
@@ -128,3 +131,57 @@ class Store:
 
     def remove_push_sub(self, endpoint):
         self._exec("DELETE FROM push_subs WHERE endpoint=?", (endpoint,))
+
+    # sessions / summaries
+    def history_rows(self, session):
+        return self._rows("SELECT id,role,content FROM messages WHERE session=? ORDER BY id", (session,))
+
+    def sessions(self):
+        rows = self._rows("SELECT session, COUNT(*) AS messages, MAX(ts) AS last_ts FROM messages GROUP BY session ORDER BY last_ts DESC")
+        for r in rows:
+            first = self._rows("SELECT content FROM messages WHERE session=? AND role='user' ORDER BY id LIMIT 1", (r["session"],))
+            r["title"] = (first[0]["content"][:60] if first else r["session"])
+            r["kind"] = "automation" if r["session"].startswith(("scheduled-", "rule-")) else "chat"
+        return rows
+
+    def delete_session(self, session):
+        self._exec("DELETE FROM messages WHERE session=?", (session,))
+        self._exec("DELETE FROM session_summaries WHERE session=?", (session,))
+
+    def get_summary(self, session):
+        r = self._rows("SELECT summary,upto_id FROM session_summaries WHERE session=?", (session,))
+        return (r[0]["summary"], r[0]["upto_id"]) if r else None
+
+    def set_summary(self, session, summary, upto_id):
+        self._exec("INSERT OR REPLACE INTO session_summaries(session,summary,upto_id) VALUES(?,?,?)", (session, summary, upto_id))
+
+    # memories CRUD
+    def get_memory(self, mid):
+        r = self._rows("SELECT * FROM memories WHERE id=?", (mid,))
+        return r[0] if r else None
+
+    def update_memory(self, mid, text):
+        self._exec("UPDATE memories SET text=? WHERE id=?", (text, mid))
+
+    def delete_memory(self, mid):
+        self._exec("DELETE FROM memories WHERE id=?", (mid,))
+
+    # per-tool permission overrides
+    def tool_policies(self):
+        return {r["tool"]: r["decision"] for r in self._rows("SELECT tool,decision FROM tool_policies")}
+
+    def set_tool_policy(self, tool, decision):
+        self._exec("INSERT OR REPLACE INTO tool_policies(tool,decision) VALUES(?,?)", (tool, decision))
+
+    def clear_tool_policy(self, tool):
+        self._exec("DELETE FROM tool_policies WHERE tool=?", (tool,))
+
+    # FCM tokens (Android push)
+    def add_fcm_token(self, token):
+        self._exec("INSERT OR IGNORE INTO fcm_tokens(token) VALUES(?)", (token,))
+
+    def fcm_tokens(self):
+        return [r["token"] for r in self._rows("SELECT token FROM fcm_tokens")]
+
+    def remove_fcm_token(self, token):
+        self._exec("DELETE FROM fcm_tokens WHERE token=?", (token,))

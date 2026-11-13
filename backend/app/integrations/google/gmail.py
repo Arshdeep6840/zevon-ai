@@ -59,6 +59,55 @@ def send_email(to: str, subject: str, body: str):
     return f"Email sent to {to}."
 
 
+SYSTEM_LABELS = {"inbox": "INBOX", "unread": "UNREAD", "starred": "STARRED", "important": "IMPORTANT",
+                 "spam": "SPAM", "trash": "TRASH", "sent": "SENT", "draft": "DRAFT"}
+
+
+def _label_ids(svc, names: str) -> list[str]:
+    """Comma-separated label names (or ids) -> label ids. System labels and existing user labels only."""
+    wanted = [n.strip() for n in names.split(",") if n.strip()]
+    if not wanted:
+        return []
+    by_name = {l["name"].lower(): l["id"] for l in svc.users().labels().list(userId="me").execute().get("labels", [])}
+    out = []
+    for w in wanted:
+        lid = SYSTEM_LABELS.get(w.lower()) or by_name.get(w.lower()) or (w if w.isupper() else None)
+        if not lid:
+            raise ValueError(f"Unknown label '{w}'. Use gmail_list_labels or gmail_create_label.")
+        out.append(lid)
+    return out
+
+
+def list_labels():
+    ls = _service().users().labels().list(userId="me").execute().get("labels", [])
+    return "\n".join(f"{l['name']} ({l['id']})" for l in ls)
+
+
+def modify_labels(message_id: str, add: str = "", remove: str = ""):
+    svc = _service()
+    body = {"addLabelIds": _label_ids(svc, add), "removeLabelIds": _label_ids(svc, remove)}
+    svc.users().messages().modify(userId="me", id=message_id, body=body).execute()
+    return f"Updated labels on {message_id}: +{add or '-'} -{remove or '-'}"
+
+
+def archive_email(message_id: str):
+    return modify_labels(message_id, remove="INBOX")
+
+
+def mark_read(message_id: str):
+    return modify_labels(message_id, remove="UNREAD")
+
+
+def create_label(name: str):
+    l = _service().users().labels().create(userId="me", body={"name": name}).execute()
+    return f"Label created: {l['name']} ({l['id']})"
+
+
+def trash_email(message_id: str):
+    _service().users().messages().trash(userId="me", id=message_id).execute()
+    return f"Moved {message_id} to trash."
+
+
 def register():
     registry.tool("gmail_search_emails", "Search Gmail (Gmail query syntax, e.g. 'is:unread newer_than:1d').",
                   {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer"}}},
@@ -68,3 +117,13 @@ def register():
                   auth.obj(to="string", subject="string", body="string"), risk="safe_write")(create_draft)
     registry.tool("gmail_send_email", "Send an email. Requires user approval.",
                   auth.obj(to="string", subject="string", body="string"), risk="sensitive")(send_email)
+    registry.tool("gmail_list_labels", "List Gmail labels.", auth.opt(), risk="read")(list_labels)
+    registry.tool("gmail_modify_labels", "Add/remove labels on an email (comma-separated names).", {
+        "type": "object", "properties": {"message_id": {"type": "string"}, "add": {"type": "string"},
+                                         "remove": {"type": "string"}}, "required": ["message_id"]}, risk="safe_write")(modify_labels)
+    registry.tool("gmail_archive_email", "Archive an email (remove from inbox).", auth.obj(message_id="string"),
+                  risk="safe_write")(archive_email)
+    registry.tool("gmail_mark_read", "Mark an email as read.", auth.obj(message_id="string"), risk="safe_write")(mark_read)
+    registry.tool("gmail_create_label", "Create a Gmail label.", auth.obj(name="string"), risk="safe_write")(create_label)
+    registry.tool("gmail_trash_email", "Move an email to trash. Requires user approval.", auth.obj(message_id="string"),
+                  risk="sensitive")(trash_email)

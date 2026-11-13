@@ -26,8 +26,21 @@ def read_file(file_id: str):
     return f"{meta['name']}\n\n{text[:4000]}"
 
 
+def create_doc(name: str, content: str):
+    """Create a NEW Google Doc from text. (drive.file scope: Zevon can only touch files it created.)"""
+    import io
+    from googleapiclient.http import MediaIoBaseUpload
+    media = MediaIoBaseUpload(io.BytesIO(content.encode()), mimetype="text/plain")
+    f = auth.service("drive", "v3").files().create(
+        body={"name": name, "mimeType": "application/vnd.google-apps.document"}, media_body=media,
+        fields="id,webViewLink").execute()
+    return f"Created Google Doc: {f.get('webViewLink', f['id'])}"
+
+
 def register():
     registry.tool("drive_search_files", "Search Google Drive files by name.", {"type": "object", "properties": {
         "query": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["query"]}, risk="read")(search_files)
     registry.tool("drive_read_file", "Read a Google Doc/Sheet/text file from Drive by id.", auth.obj(file_id="string"),
                   risk="read")(read_file)
+    registry.tool("drive_create_doc", "Create a new Google Doc with the given text.", auth.obj(name="string", content="string"),
+                  risk="safe_write")(create_doc)

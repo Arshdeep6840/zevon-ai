@@ -28,6 +28,12 @@ def create_task(content: str, due_string: str = "", priority: int = 1):
     return f"Todoist task created (id {r.json()['id']})."
 
 
+def complete_task(task_id: str):
+    r = httpx.post(f"{API}/tasks/{task_id}/close", headers=_h(), timeout=20)
+    r.raise_for_status()
+    return f"Completed Todoist task {task_id}."
+
+
 def register():
     registry.tool("todoist_list_tasks", "List open Todoist tasks.", {"type": "object", "properties": {
         "project_id": {"type": "string"}}}, risk="read")(list_tasks)
@@ -35,3 +41,6 @@ def register():
         "type": "object", "properties": {"content": {"type": "string"}, "due_string": {"type": "string"},
                                          "priority": {"type": "integer"}}, "required": ["content"]},
         risk="safe_write")(create_task)
+    registry.tool("todoist_complete_task", "Mark a Todoist task as done by id.", {
+        "type": "object", "properties": {"task_id": {"type": "string"}}, "required": ["task_id"]},
+        risk="safe_write")(complete_task)

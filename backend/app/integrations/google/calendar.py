@@ -17,6 +17,15 @@ def list_events(days: int = 7):
     return "\n".join(out) or "No upcoming events."
 
 
+def upcoming_keys(minutes: int = 15):
+    """(event id, start) for events starting within the next N minutes (used by the calendar trigger)."""
+    now = datetime.now(timezone.utc)
+    r = auth.service("calendar", "v3").events().list(
+        calendarId="primary", timeMin=now.isoformat(), timeMax=(now + timedelta(minutes=minutes)).isoformat(),
+        singleEvents=True, orderBy="startTime", maxResults=10).execute()
+    return [(e["id"], e["start"].get("dateTime", e["start"].get("date"))) for e in r.get("items", [])]
+
+
 def create_event(summary: str, start: str, end: str, description: str = ""):
     """start/end are ISO 8601, e.g. 2026-11-20T15:00:00 (interpreted in ZEVON_TIMEZONE)."""
     tz = settings.timezone

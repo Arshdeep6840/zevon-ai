@@ -7,9 +7,11 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",   # labels, archive, mark read, trash
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.file",     # create docs (only files Zevon creates)
     "https://www.googleapis.com/auth/tasks",
 ]
 

@@ -64,6 +64,19 @@ class Settings:
     mcp_config: str = E("ZEVON_MCP_CONFIG", str(ROOT / "data" / "mcp_servers.json"))
     vapid_key_file: str = E("ZEVON_VAPID_KEY", str(ROOT / "data" / "vapid_private.pem"))
     vapid_subject: str = E("ZEVON_VAPID_SUBJECT", "mailto:admin@example.com")
+    fcm_service_account: str = E("ZEVON_FCM_SERVICE_ACCOUNT")    # Firebase service-account JSON path (Android push)
+    # agent behaviour
+    history_keep: int = E("ZEVON_HISTORY_KEEP", "12", int)         # recent messages kept verbatim
+    summarize_after: int = E("ZEVON_SUMMARIZE_AFTER", "30", int)   # unsummarized messages before older ones are summarized
+    planning: str = E("ZEVON_PLANNING", "auto")                    # auto | always | off
+    # other model providers (ZEVON_LLM_PROVIDER = ollama | openai | anthropic)
+    openai_base_url: str = E("ZEVON_OPENAI_BASE_URL", "http://localhost:8080/v1")  # llama.cpp / vLLM / LM Studio / OpenAI ...
+    openai_api_key: str = E("ZEVON_OPENAI_API_KEY")
+    anthropic_api_key: str = E("ZEVON_ANTHROPIC_API_KEY")
+    # extra tool modes
+    terminal_ask: str = E("ZEVON_TERMINAL_ASK", "off")             # on = any command allowed AFTER your approval
+    screenshots_dir: str = E("ZEVON_SCREENSHOTS_DIR", str(ROOT / "data" / "screenshots"))
+    trigger_poll_minutes: int = E("ZEVON_TRIGGER_POLL_MIN", "1", int)
 
 
 settings = Settings()

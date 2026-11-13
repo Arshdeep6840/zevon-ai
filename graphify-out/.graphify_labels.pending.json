@@ -1,3 +1,21 @@
 {
-  "10": "setup_graphify.sh"
+  "0": "AgentEngine",
+  "1": "test_v2.py",
+  "2": "create_app",
+  "5": "api",
+  "6": "test_v3.py",
+  "8": "VectorMemory",
+  "10": "setup_graphify.sh",
+  "14": "main.py",
+  "23": "test_core.py",
+  "26": "llm.py",
+  "29": "OpenAICompatProvider",
+  "30": "OllamaProvider",
+  "31": "TimeTrigger",
+  "32": "generate_icons.py",
+  "33": "features",
+  "34": "FakeStream",
+  "35": "ThinkFilter",
+  "36": "valid_trigger",
+  "37": "chat_stream"
 }

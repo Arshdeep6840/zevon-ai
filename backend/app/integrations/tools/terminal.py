@@ -47,3 +47,26 @@ def run_command(command: str) -> str:
 registry.tool("terminal_run", "Run a safe, allowlisted read-only shell command (ls, pwd, df, git status, nvidia-smi...). "
               "No pipes or redirects.", {"type": "object", "properties": {"command": {"type": "string"}},
                                           "required": ["command"]}, risk="read")(run_command)
+
+
+HARD_DENY = {"sudo", "su", "doas", "mkfs", "dd", "shutdown", "reboot", "halt", "poweroff", "format", "fdisk", "passwd"}
+
+
+def run_any(command: str) -> str:
+    """ASK MODE: any program, but only after the user approves the exact command. No shell, 60s timeout."""
+    if any(c in command for c in FORBIDDEN_CHARS):
+        raise PermissionError("Shell operators (; | & > < ` $) are not allowed; run one program at a time.")
+    argv = shlex.split(command)
+    if not argv:
+        raise ValueError("Empty command.")
+    if argv[0] in HARD_DENY:
+        raise PermissionError(f"'{argv[0]}' is never allowed.")
+    cwd = settings.allowed_folders[0] if settings.allowed_folders else tempfile.gettempdir()
+    p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=60)
+    return ((p.stdout or "") + (p.stderr or ""))[:4000] or f"(exit code {p.returncode}, no output)"
+
+
+def register_ask_mode():
+    registry.tool("terminal_run_any", "Run any command (one program, no pipes). ALWAYS needs the user's approval, "
+                  "who sees the exact command.", {"type": "object", "properties": {"command": {"type": "string"}},
+                                                  "required": ["command"]}, risk="sensitive")(run_any)

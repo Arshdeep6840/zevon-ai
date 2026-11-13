@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api, getServer, isNative } from './api.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api, getServer } from './api.js'
+import { isAndroid, isDesktopApp, notifyLocal, registerAndroidPush } from './native.js'
 import Chat from './components/Chat.jsx'
 import Approvals from './components/Approvals.jsx'
 import Inbox from './components/Inbox.jsx'
 import Rules from './components/Rules.jsx'
-import { Audit, Tools } from './components/Lists.jsx'
+import Memory from './components/Memory.jsx'
+import Permissions from './components/Permissions.jsx'
+import { Audit } from './components/Lists.jsx'
 import Settings from './components/Settings.jsx'
 
-const TABS = ['Chat', 'Approvals', 'Inbox', 'Rules', 'Audit', 'Tools', 'Settings']
+const TABS = ['Chat', 'Approvals', 'Inbox', 'Rules', 'Memory', 'Permissions', 'Audit', 'Settings']
 
 export default function App() {
-  const needsServer = isNative() && !getServer()
-  const [tab, setTab] = useState(needsServer ? 'Settings' : 'Chat')
+  const native = isAndroid() || isDesktopApp()
+  const [tab, setTab] = useState(native && !getServer() ? 'Settings' : 'Chat')
   const [badges, setBadges] = useState({ Approvals: 0, Inbox: 0 })
   const [killed, setKilled] = useState(false)
   const [offline, setOffline] = useState(false)
+  const lastUnread = useRef(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -22,9 +26,9 @@ export default function App() {
       setBadges({ Approvals: a.length, Inbox: n.length })
       setKilled(h.kill_switch)
       setOffline(false)
-    } catch (e) {
-      setOffline(e.status !== 401)
-    }
+      if (lastUnread.current !== null && n.length > lastUnread.current) notifyLocal(n[0].title, n[0].body)   // new inbox item
+      lastUnread.current = n.length
+    } catch (e) { setOffline(e.status !== 401) }
   }, [])
 
   useEffect(() => {
@@ -32,6 +36,11 @@ export default function App() {
     const t = setInterval(refresh, 15000)
     return () => clearInterval(t)
   }, [refresh, tab])
+
+  // Android: register for push automatically once a server is configured (needs Firebase set up, see docs)
+  useEffect(() => {
+    if (isAndroid() && getServer()) registerAndroidPush((token) => api('/push/fcm', { method: 'POST', body: { token } })).catch(() => {})
+  }, [])
 
   async function toggleKill() {
     const r = await api('/kill', { method: 'POST', body: { active: !killed } })
@@ -57,8 +66,9 @@ export default function App() {
         {tab === 'Approvals' && <Approvals onChange={refresh} />}
         {tab === 'Inbox' && <Inbox onChange={refresh} />}
         {tab === 'Rules' && <Rules />}
+        {tab === 'Memory' && <Memory />}
+        {tab === 'Permissions' && <Permissions />}
         {tab === 'Audit' && <Audit />}
-        {tab === 'Tools' && <Tools />}
         {tab === 'Settings' && <Settings />}
       </main>
     </div>

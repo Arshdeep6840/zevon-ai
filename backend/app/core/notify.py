@@ -31,8 +31,21 @@ class Notifier:
         raw = self._vapid().public_key.public_bytes(ser.Encoding.X962, ser.PublicFormat.UncompressedPoint)
         return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
+    def fcm_available(self) -> bool:
+        return bool(self.cfg.fcm_service_account)
+
+    def _fcm(self, title, body):
+        from .fcm import send_fcm
+        try:
+            for dead in send_fcm(self.cfg.fcm_service_account, self.store.fcm_tokens(), title, body):
+                self.store.remove_fcm_token(dead)
+        except Exception as e:
+            self.store.audit("push", "fcm", str(e)[:200], "failed")
+
     def notify(self, title: str, body: str):
         self.store.add_notification(title, body)
+        if self.fcm_available():
+            self._fcm(title, body)
         if not self.push_available():
             return
         from pywebpush import WebPushException, webpush

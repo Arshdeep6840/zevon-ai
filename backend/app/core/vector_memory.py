@@ -32,6 +32,9 @@ class VectorMemory:
     def add(self, mem_id, text: str):
         self.col.upsert(ids=[str(mem_id)], documents=[text], embeddings=self.embed([text]))
 
+    def delete(self, mem_id):
+        self.col.delete(ids=[str(mem_id)])
+
     def search(self, query: str, n: int = 5) -> list[str]:
         count = self.col.count()
         if not count:
