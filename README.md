@@ -47,6 +47,11 @@ Rules tab example: *When a new email arrives* → "If it is from my boss, summar
 
 More: `docs/architecture.md` · `docs/plugin-guide.md` · `docs/deployment.md` (Tailscale HTTPS, Android, Tauri, voice, push) · `docs/api.md` · `SECURITY.md`
 
+## Code map for AI assistants (Graphify)
+The repo ships a knowledge graph of its own code so an AI doesn't need to read every file for a small change:
+`graphify-out/graph.html` (visual, open in a browser) · `GRAPH_REPORT.md` (summary) · `graph.json` (queryable) · `docs/CODEMAP.md` (hand-written map and recipes) · `CLAUDE.md` / `AGENTS.md` (assistant instructions).
+Setup once: `./scripts/setup_graphify.sh`. Then `graphify query "where are approvals executed"`. After code changes: `graphify update .`.
+
 ## Status
 Backend: 34 automated tests (real MCP server, ChromaDB, VAPID keys included). Not yet verified by the author: a live Ollama model, real Google/Notion/Todoist/Slack accounts, Playwright, faster-whisper/Piper audio, Web Push to a real device, the UI in a real browser, and the Android/Tauri builds (projects are generated, not compiled).
 

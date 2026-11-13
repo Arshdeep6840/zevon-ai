@@ -1,0 +1,9 @@
+node_modules/
+frontend/dist/
+frontend/android/
+frontend/src-tauri/target/
+frontend/legacy/
+data/
+LICENSE
+*.lock
+package-lock.json
