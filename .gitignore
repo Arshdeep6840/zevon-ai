@@ -5,6 +5,8 @@ data/*
 !data/.gitkeep
 .pytest_cache/
 .venv/
+venv
+venv/
 node_modules/
 credentials.json
 
