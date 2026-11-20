@@ -38,7 +38,7 @@ dev = [
 zevon = "services.api.main:start"
 
 [tool.hatch.build.targets.wheel]
-packages = ["services", "packages"]
+packages = ["services", "packages", "app"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
