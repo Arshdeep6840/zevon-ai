@@ -3,7 +3,8 @@
 import os
 from pathlib import Path
 from typing import AsyncGenerator, Optional, Tuple
-import aiosqlite
+
+import aiosqlite  # type: ignore[missing-import]
 
 DEFAULT_DB_PATH = os.getenv("ZEVON_DB_PATH", "zevon.db")
 _initialized_dbs = set()

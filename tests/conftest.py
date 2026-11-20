@@ -1,6 +1,6 @@
 """Test configuration and fixtures for Zevon test suite."""
 
-import aiosqlite
+import aiosqlite  # type: ignore[missing-import]
 import pytest
 
 from services.memory.database import init_db

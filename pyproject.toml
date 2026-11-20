@@ -51,3 +51,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 ignore = ["B008", "BLE001", "S110", "S112"]
+
+[tool.pyrefly]
+python-interpreter-path = "C:/Users/Latitude/AppData/Local/Programs/Python/Python311/python.exe"
+search-path = [
+    "C:/Users/Latitude/AppData/Local/Programs/Python/Python311/Lib/site-packages"
+]
+ignore-missing-imports = ["aiosqlite"]
