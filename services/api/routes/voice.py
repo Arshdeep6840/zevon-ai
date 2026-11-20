@@ -1,6 +1,8 @@
 """Voice endpoints for speech recognition, synthesis, wake-word, and state."""
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
 from packages.shared_schemas.models import (
@@ -128,14 +130,32 @@ async def check_wake_word(
 
 @router.post("/state")
 async def update_voice_state(
-    state: VoiceState,
+    state: VoiceState | None = Query(None),
+    payload: Any = Body(None),
     vm: VoiceManager = Depends(get_voice_manager),
 ):
     """Directly request a voice state transition (e.g. push-to-talk start/end, barge-in)."""
-    if state == VoiceState.INTERRUPTED:
+    target_state = state
+    if target_state is None and payload is not None:
+        if isinstance(payload, dict):
+            raw = payload.get("state")
+        elif isinstance(payload, str):
+            raw = payload
+        else:
+            raw = None
+        if raw:
+            try:
+                target_state = VoiceState(raw.lower())
+            except ValueError:
+                pass
+
+    if target_state is None:
+        target_state = VoiceState.IDLE
+
+    if target_state == VoiceState.INTERRUPTED:
         vm.trigger_barge_in()
-    elif state == VoiceState.LISTENING:
+    elif target_state == VoiceState.LISTENING:
         vm.trigger_push_to_talk_start()
     else:
-        vm.state_machine.transition_to(state)
+        vm.state_machine.transition_to(target_state)
     return {"status": "success", "new_state": vm.current_state.value}

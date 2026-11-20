@@ -42,6 +42,29 @@ class MemoryRepository:
         await self.conn.commit()
         return conv
 
+    async def ensure_conversation(
+        self,
+        conversation_id: str,
+        title: str = "New Conversation",
+        profile: str = "personal",
+    ) -> Conversation:
+        existing = await self.get_conversation(conversation_id)
+        if existing:
+            return existing
+        now = utc_now_iso()
+        await self.conn.execute(
+            "INSERT OR IGNORE INTO conversations (id, title, profile, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (conversation_id, title, profile, now, now),
+        )
+        await self.conn.commit()
+        return Conversation(
+            id=conversation_id,
+            title=title,
+            profile=profile,
+            created_at=datetime.fromisoformat(now),
+            updated_at=datetime.fromisoformat(now),
+        )
+
     async def get_conversation(self, conversation_id: str) -> Conversation | None:
         cursor = await self.conn.execute(
             "SELECT id, title, profile, created_at, updated_at FROM conversations WHERE id = ?",

@@ -90,6 +90,32 @@ async def init_db(db_path: Optional[str] = None) -> None:
             );
         """)
 
+        # Migration: remove legacy foreign key constraint from tasks table if present
+        cursor = await conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks';")
+        tasks_ddl = await cursor.fetchone()
+        if tasks_ddl and "FOREIGN KEY" in tasks_ddl[0]:
+            await conn.execute("PRAGMA foreign_keys = OFF;")
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS tasks_migrated (
+                    id TEXT PRIMARY KEY,
+                    conversation_id TEXT,
+                    status TEXT NOT NULL,
+                    prompt TEXT NOT NULL,
+                    plan TEXT NOT NULL,
+                    current_step INTEGER DEFAULT 0,
+                    artifacts TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            await conn.execute("""
+                INSERT OR IGNORE INTO tasks_migrated (id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at)
+                SELECT id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at FROM tasks;
+            """)
+            await conn.execute("DROP TABLE tasks;")
+            await conn.execute("ALTER TABLE tasks_migrated RENAME TO tasks;")
+            await conn.execute("PRAGMA foreign_keys = ON;")
+
         # Notes table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS notes (

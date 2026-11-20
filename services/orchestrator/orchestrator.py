@@ -100,6 +100,8 @@ class TaskOrchestrator:
 
         repo = await self._get_repo()
         if repo:
+            if task.conversation_id:
+                await repo.ensure_conversation(task.conversation_id, title="Task Workspace")
             await repo.create_task(task)
 
         return task

@@ -937,7 +937,7 @@ function handleVoiceBargeIn() {
   fetch("/api/v1/voice/state", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify("interrupted"),
+    body: JSON.stringify({ state: "interrupted" }),
   }).catch(() => {});
 
   setTimeout(() => {
