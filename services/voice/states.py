@@ -22,6 +22,8 @@ class VoiceStateMachine:
         VoiceState.IDLE: {
             VoiceState.WAKE_DETECTED,
             VoiceState.LISTENING,
+            VoiceState.TRANSCRIBING,
+            VoiceState.THINKING,
             VoiceState.SPEAKING,
             VoiceState.MIC_UNAVAILABLE,
             VoiceState.ERROR,

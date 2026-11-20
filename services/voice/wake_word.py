@@ -67,9 +67,7 @@ class LocalWakeWordDetector:
 
         return False, None, 0.0
 
-    def detect_in_audio_energy(
-        self, pcm_bytes: bytes, sample_width: int = 2
-    ) -> tuple[bool, float]:
+    def detect_in_audio_energy(self, pcm_bytes: bytes, sample_width: int = 2) -> tuple[bool, float]:
         """
         Evaluate frame volume / presence of speech energy for local wake arming.
         Returns (has_speech_energy, rms_level).

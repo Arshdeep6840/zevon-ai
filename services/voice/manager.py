@@ -79,9 +79,7 @@ class VoiceManager:
             self.state_machine.transition_to(VoiceState.INTERRUPTED)
             self.state_machine.transition_to(VoiceState.LISTENING)
 
-    def process_incoming_audio_chunk(
-        self, chunk: bytes, sample_width: int = 2
-    ) -> dict[str, Any]:
+    def process_incoming_audio_chunk(self, chunk: bytes, sample_width: int = 2) -> dict[str, Any]:
         """
         Process an incoming audio frame from WebSocket or audio stream.
         Applies local VAD and wake-word checks without streaming audio to external servers.
@@ -95,9 +93,7 @@ class VoiceManager:
 
         # If IDLE and wake word enabled, check audio energy
         if self.current_state == VoiceState.IDLE and self.settings.wake_word_enabled:
-            has_energy, level = self.wake_detector.detect_in_audio_energy(
-                chunk, sample_width
-            )
+            has_energy, level = self.wake_detector.detect_in_audio_energy(chunk, sample_width)
             if has_energy and level > (1.1 - self.settings.wake_word_sensitivity):
                 event_info["wake_word"] = {"candidate": True, "level": level}
 
@@ -112,9 +108,7 @@ class VoiceManager:
 
         return event_info
 
-    async def transcribe_current_buffer(
-        self, language: str = "en"
-    ) -> TranscriptionResult:
+    async def transcribe_current_buffer(self, language: str = "en") -> TranscriptionResult:
         """Transcribe the captured audio buffer."""
         self.state_machine.transition_to(VoiceState.TRANSCRIBING)
         audio_data = bytes(self._active_audio_buffer)

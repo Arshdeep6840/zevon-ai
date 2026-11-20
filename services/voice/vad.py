@@ -31,9 +31,7 @@ class VoiceActivityDetector:
         self._last_speech_at = None
         self._total_speech_bytes = 0
 
-    def process_frame(
-        self, pcm_bytes: bytes, sample_width: int = 2
-    ) -> dict[str, Any]:
+    def process_frame(self, pcm_bytes: bytes, sample_width: int = 2) -> dict[str, Any]:
         """
         Process a PCM audio chunk.
         Returns a dict with:
@@ -69,9 +67,7 @@ class VoiceActivityDetector:
         else:
             if self.is_speaking and self._last_speech_at:
                 silence_duration = (now - self._last_speech_at).total_seconds()
-                speech_duration = (
-                    now - (self._speech_started_at or now)
-                ).total_seconds()
+                speech_duration = (now - (self._speech_started_at or now)).total_seconds()
 
                 if (
                     silence_duration >= self.silence_timeout

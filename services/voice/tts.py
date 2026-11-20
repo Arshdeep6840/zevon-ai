@@ -128,10 +128,14 @@ class LocalPiperTTS(BaseTTSProvider):
                 envelope = 0.5 + 0.5 * math.sin(2 * math.pi * (len(words) / total_duration) * t)
                 # Formant harmonics
                 sample_val = (
-                    0.6 * math.sin(2 * math.pi * f0 * t)
-                    + 0.3 * math.sin(2 * math.pi * (f0 * 2) * t)
-                    + 0.1 * math.sin(2 * math.pi * (f0 * 3) * t)
-                ) * envelope * vol_scale
+                    (
+                        0.6 * math.sin(2 * math.pi * f0 * t)
+                        + 0.3 * math.sin(2 * math.pi * (f0 * 2) * t)
+                        + 0.1 * math.sin(2 * math.pi * (f0 * 3) * t)
+                    )
+                    * envelope
+                    * vol_scale
+                )
 
                 int_sample = max(-32767, min(32767, int(sample_val)))
                 raw_frames.extend(struct.pack("<h", int_sample))

@@ -5,7 +5,7 @@ import wave
 import pytest
 from fastapi.testclient import TestClient
 
-from packages.shared_schemas.models import SpeakRequest, VoiceSettings, VoiceState
+from packages.shared_schemas.models import SpeakRequest, VoiceState
 from services.api.config import settings
 from services.api.main import app
 from services.model_gateway.registry import get_model_registry
@@ -50,9 +50,9 @@ def test_voice_state_machine_lifecycle():
     assert sm.transition_to(VoiceState.INTERRUPTED) == VoiceState.INTERRUPTED
     assert sm.transition_to(VoiceState.LISTENING) == VoiceState.LISTENING
 
-    # Invalid transition should raise
+    # Invalid transition should raise (cannot jump directly from LISTENING to WAITING_APPROVAL)
     with pytest.raises(InvalidStateTransitionError):
-        sm.transition_to(VoiceState.SPEAKING)
+        sm.transition_to(VoiceState.WAITING_APPROVAL)
 
 
 def test_wake_word_detector():
@@ -170,7 +170,9 @@ def test_voice_api_endpoints(client):
     assert res_wake.json()["detected"] is True
 
     # 4. Speak
-    res_speak = client.post("/api/v1/voice/speak", json={"text": "Voice test playback", "speed": 1.0})
+    res_speak = client.post(
+        "/api/v1/voice/speak", json={"text": "Voice test playback", "speed": 1.0}
+    )
     assert res_speak.status_code == 200
     assert res_speak.headers["content-type"] == "audio/wav"
     assert len(res_speak.content) > 44

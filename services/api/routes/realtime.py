@@ -234,9 +234,7 @@ async def realtime_chat_socket(websocket: WebSocket):
                                 await websocket.send_json(
                                     {
                                         "type": "tts_audio",
-                                        "audio_base64": base64.b64encode(audio_wav).decode(
-                                            "ascii"
-                                        ),
+                                        "audio_base64": base64.b64encode(audio_wav).decode("ascii"),
                                         "format": "wav",
                                     }
                                 )

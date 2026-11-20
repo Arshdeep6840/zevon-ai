@@ -1,6 +1,6 @@
 """Voice endpoints for speech recognition, synthesis, wake-word, and state."""
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from packages.shared_schemas.models import (
@@ -34,19 +34,15 @@ async def get_voice_settings(
     db_settings = await repo.get_all_settings()
     # Populate from DB or current manager defaults
     settings = VoiceSettings(
-        wake_word_enabled=db_settings.get("voice_wake_word_enabled", "true").lower()
-        == "true",
+        wake_word_enabled=db_settings.get("voice_wake_word_enabled", "true").lower() == "true",
         wake_word_phrase=db_settings.get("voice_wake_word_phrase", "Hey Zevon"),
-        wake_word_sensitivity=float(
-            db_settings.get("voice_wake_word_sensitivity", 0.6)
-        ),
+        wake_word_sensitivity=float(db_settings.get("voice_wake_word_sensitivity", 0.6)),
         tts_enabled=db_settings.get("voice_tts_enabled", "true").lower() == "true",
         tts_voice=db_settings.get("voice_tts_voice", "en_US-lessac-medium"),
         tts_speed=float(db_settings.get("voice_tts_speed", 1.0)),
         tts_volume=float(db_settings.get("voice_tts_volume", 1.0)),
         tts_muted=db_settings.get("voice_tts_muted", "false").lower() == "true",
-        auto_barge_in=db_settings.get("voice_auto_barge_in", "true").lower()
-        == "true",
+        auto_barge_in=db_settings.get("voice_auto_barge_in", "true").lower() == "true",
         push_to_talk_key=db_settings.get("voice_push_to_talk_key", "Space"),
     )
     vm.update_settings(settings)
@@ -62,13 +58,9 @@ async def update_voice_settings(
     """Update and persist voice settings."""
     vm.update_settings(payload)
     # Persist to database
-    await repo.set_setting(
-        "voice_wake_word_enabled", str(payload.wake_word_enabled).lower()
-    )
+    await repo.set_setting("voice_wake_word_enabled", str(payload.wake_word_enabled).lower())
     await repo.set_setting("voice_wake_word_phrase", payload.wake_word_phrase)
-    await repo.set_setting(
-        "voice_wake_word_sensitivity", str(payload.wake_word_sensitivity)
-    )
+    await repo.set_setting("voice_wake_word_sensitivity", str(payload.wake_word_sensitivity))
     await repo.set_setting("voice_tts_enabled", str(payload.tts_enabled).lower())
     await repo.set_setting("voice_tts_voice", payload.tts_voice)
     await repo.set_setting("voice_tts_speed", str(payload.tts_speed))

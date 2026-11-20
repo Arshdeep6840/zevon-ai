@@ -15,9 +15,7 @@ from packages.shared_schemas.models import TranscriptionResult
 
 class BaseASRProvider(ABC):
     @abstractmethod
-    async def transcribe(
-        self, audio_bytes: bytes, language: str = "en"
-    ) -> TranscriptionResult:
+    async def transcribe(self, audio_bytes: bytes, language: str = "en") -> TranscriptionResult:
         """Transcribe raw or encoded audio bytes into text."""
 
 
@@ -36,9 +34,7 @@ class LocalWhisperASR(BaseASRProvider):
         except ImportError:
             return False
 
-    async def transcribe(
-        self, audio_bytes: bytes, language: str = "en"
-    ) -> TranscriptionResult:
+    async def transcribe(self, audio_bytes: bytes, language: str = "en") -> TranscriptionResult:
         """Transcribe audio bytes using faster-whisper if installed, or fallback parser."""
         if not audio_bytes:
             return TranscriptionResult(
@@ -61,9 +57,7 @@ class LocalWhisperASR(BaseASRProvider):
             from faster_whisper import WhisperModel
 
             if self._model is None:
-                self._model = WhisperModel(
-                    self.model_size, device=self.device, compute_type="int8"
-                )
+                self._model = WhisperModel(self.model_size, device=self.device, compute_type="int8")
 
             segments, info = self._model.transcribe(
                 io.BytesIO(audio_bytes), language=language if language != "auto" else None
