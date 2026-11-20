@@ -1,9 +1,13 @@
 """Ollama inference provider for local open-weight models."""
 
 import json
-from typing import AsyncIterator, List, Optional, Dict, Any
+from collections.abc import AsyncIterator
+from typing import Any
+
 import httpx
+
 from packages.shared_schemas.models import Message, ModelCard
+
 from .base import BaseModelProvider
 
 
@@ -19,7 +23,7 @@ class OllamaProvider(BaseModelProvider):
         except Exception:
             return False
 
-    async def list_models(self) -> List[ModelCard]:
+    async def list_models(self) -> list[ModelCard]:
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 res = await client.get(f"{self.base_url}/api/tags")
@@ -33,7 +37,9 @@ class OllamaProvider(BaseModelProvider):
                                 id=name,
                                 name=name,
                                 provider="ollama",
-                                parameter_size=str(item.get("details", {}).get("parameter_size", "unknown")),
+                                parameter_size=str(
+                                    item.get("details", {}).get("parameter_size", "unknown")
+                                ),
                                 quantization=item.get("details", {}).get("quantization_level"),
                                 is_installed=True,
                                 description=f"Local Ollama model: {name}",
@@ -46,10 +52,10 @@ class OllamaProvider(BaseModelProvider):
 
     async def stream_chat(
         self,
-        messages: List[Message],
+        messages: list[Message],
         model_name: str,
         temperature: float = 0.7,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
         formatted_messages = [{"role": m.role.value, "content": m.content} for m in messages]
         payload = {
@@ -61,8 +67,10 @@ class OllamaProvider(BaseModelProvider):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
+        async with (
+            httpx.AsyncClient(timeout=60.0) as client,
+            client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response,
+        ):
                 if response.status_code != 200:
                     error_text = await response.aread()
                     yield f"Error from Ollama ({response.status_code}): {error_text.decode('utf-8', errors='ignore')}"

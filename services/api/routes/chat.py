@@ -1,15 +1,17 @@
 """Chat turn endpoint with streaming SSE and SQLite conversation persistence."""
 
 import json
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+
 from packages.shared_schemas.models import ChatRequest, Message, Role
 from packages.shared_schemas.profiles import get_profile
+from services.api.config import settings
 from services.api.dependencies import get_gateway, get_repository
 from services.memory.repository import MemoryRepository
 from services.model_gateway.registry import ModelRegistry
-from services.api.config import settings
 
 router = APIRouter(prefix="/api/v1", tags=["Chat"])
 
@@ -54,9 +56,11 @@ async def chat_turn(
 
     # 3. Assemble prompt context with Profile system prompt
     profile_def = get_profile(conversation.profile)
-    effective_temp = request.temperature if request.temperature != 0.7 else profile_def.default_temperature
+    effective_temp = (
+        request.temperature if request.temperature != 0.7 else profile_def.default_temperature
+    )
 
-    context_messages: List[Message] = [
+    context_messages: list[Message] = [
         Message(
             conversation_id=conversation_id,
             role=Role.SYSTEM,

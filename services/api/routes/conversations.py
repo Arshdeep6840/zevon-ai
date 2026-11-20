@@ -1,9 +1,9 @@
 """Conversation and message history management endpoints."""
 
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from packages.shared_schemas.models import Conversation, Message
+
+from packages.shared_schemas.models import Conversation
 from services.api.dependencies import get_repository
 from services.memory.repository import MemoryRepository
 
@@ -16,11 +16,11 @@ class CreateConversationRequest(BaseModel):
 
 
 class UpdateConversationRequest(BaseModel):
-    title: Optional[str] = None
-    profile: Optional[str] = None
+    title: str | None = None
+    profile: str | None = None
 
 
-@router.get("", response_model=List[Conversation])
+@router.get("", response_model=list[Conversation])
 async def list_conversations(repo: MemoryRepository = Depends(get_repository)):
     """List all saved conversations ordered by recency."""
     return await repo.list_conversations()
@@ -90,7 +90,7 @@ async def clear_all_conversations(repo: MemoryRepository = Depends(get_repositor
 @router.get("/{conversation_id}/export")
 async def export_conversation(
     conversation_id: str,
-    format: str = Query("json", regex="^(json|markdown)$"),
+    format: str = Query("json", pattern="^(json|markdown)$"),
     repo: MemoryRepository = Depends(get_repository),
 ):
     """Export conversation data in portable JSON or Markdown format."""

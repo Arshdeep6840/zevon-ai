@@ -1,26 +1,39 @@
 """Repository for conversations, messages, and settings."""
 
 import json
-from datetime import datetime
-from typing import List, Optional
+from datetime import UTC, datetime
+
 import aiosqlite
+
 from packages.shared_schemas.models import Conversation, Message, Role
+
+
+def utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 class MemoryRepository:
     def __init__(self, conn: aiosqlite.Connection):
         self.conn = conn
 
-    async def create_conversation(self, title: str = "New Conversation", profile: str = "personal") -> Conversation:
+    async def create_conversation(
+        self, title: str = "New Conversation", profile: str = "personal"
+    ) -> Conversation:
         conv = Conversation(title=title, profile=profile)
         await self.conn.execute(
             "INSERT INTO conversations (id, title, profile, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (conv.id, conv.title, conv.profile, conv.created_at.isoformat(), conv.updated_at.isoformat()),
+            (
+                conv.id,
+                conv.title,
+                conv.profile,
+                conv.created_at.isoformat(),
+                conv.updated_at.isoformat(),
+            ),
         )
         await self.conn.commit()
         return conv
 
-    async def get_conversation(self, conversation_id: str) -> Optional[Conversation]:
+    async def get_conversation(self, conversation_id: str) -> Conversation | None:
         cursor = await self.conn.execute(
             "SELECT id, title, profile, created_at, updated_at FROM conversations WHERE id = ?",
             (conversation_id,),
@@ -36,7 +49,7 @@ class MemoryRepository:
             updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
-    async def list_conversations(self) -> List[Conversation]:
+    async def list_conversations(self) -> list[Conversation]:
         cursor = await self.conn.execute(
             "SELECT id, title, profile, created_at, updated_at FROM conversations ORDER BY updated_at DESC"
         )
@@ -53,19 +66,21 @@ class MemoryRepository:
         ]
 
     async def delete_conversation(self, conversation_id: str) -> bool:
-        cursor = await self.conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+        cursor = await self.conn.execute(
+            "DELETE FROM conversations WHERE id = ?", (conversation_id,)
+        )
         await self.conn.commit()
         return cursor.rowcount > 0
 
     async def update_conversation(
-        self, conversation_id: str, title: Optional[str] = None, profile: Optional[str] = None
-    ) -> Optional[Conversation]:
+        self, conversation_id: str, title: str | None = None, profile: str | None = None
+    ) -> Conversation | None:
         conv = await self.get_conversation(conversation_id)
         if not conv:
             return None
         new_title = title if title is not None else conv.title
         new_profile = profile if profile is not None else conv.profile
-        now = datetime.utcnow().isoformat()
+        now = utc_now_iso()
         await self.conn.execute(
             "UPDATE conversations SET title = ?, profile = ?, updated_at = ? WHERE id = ?",
             (new_title, new_profile, now, conversation_id),
@@ -78,7 +93,7 @@ class MemoryRepository:
         await self.conn.commit()
         return cursor.rowcount
 
-    async def export_conversation(self, conversation_id: str) -> Optional[dict]:
+    async def export_conversation(self, conversation_id: str) -> dict | None:
         conv = await self.get_conversation(conversation_id)
         if not conv:
             return None
@@ -93,7 +108,7 @@ class MemoryRepository:
         conversation_id: str,
         role: Role,
         content: str,
-        tool_calls: Optional[list] = None,
+        tool_calls: list | None = None,
     ) -> Message:
         msg = Message(
             conversation_id=conversation_id,
@@ -104,17 +119,24 @@ class MemoryRepository:
         tool_calls_json = json.dumps(tool_calls) if tool_calls else None
         await self.conn.execute(
             "INSERT INTO messages (id, conversation_id, role, content, tool_calls, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (msg.id, msg.conversation_id, msg.role.value, msg.content, tool_calls_json, msg.created_at.isoformat()),
+            (
+                msg.id,
+                msg.conversation_id,
+                msg.role.value,
+                msg.content,
+                tool_calls_json,
+                msg.created_at.isoformat(),
+            ),
         )
         # Update conversation updated_at
         await self.conn.execute(
             "UPDATE conversations SET updated_at = ? WHERE id = ?",
-            (datetime.utcnow().isoformat(), conversation_id),
+            (utc_now_iso(), conversation_id),
         )
         await self.conn.commit()
         return msg
 
-    async def get_messages(self, conversation_id: str) -> List[Message]:
+    async def get_messages(self, conversation_id: str) -> list[Message]:
         cursor = await self.conn.execute(
             "SELECT id, conversation_id, role, content, tool_calls, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
             (conversation_id,),
@@ -135,7 +157,7 @@ class MemoryRepository:
             )
         return messages
 
-    async def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    async def get_setting(self, key: str, default: str | None = None) -> str | None:
         cursor = await self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = await cursor.fetchone()
         return row["value"] if row else default

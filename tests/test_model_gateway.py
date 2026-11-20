@@ -1,7 +1,8 @@
 """Unit tests for model gateway, hardware profiling, and offline mock provider."""
 
 import pytest
-from packages.shared_schemas.models import Message, Role, ModelCard
+
+from packages.shared_schemas.models import Message, ModelCard, Role
 from services.model_gateway.offline_mock import OfflineMockProvider
 from services.model_gateway.registry import HardwareProfile, ModelRegistry
 
@@ -35,14 +36,10 @@ async def test_hardware_profiler():
     assert hw["tier"] in ["compact", "balanced", "performance"]
 
     # Test model fit ratings
-    compact_model = ModelCard(
-        id="test-1b", name="Test 1B", provider="mock", parameter_size="1B"
-    )
+    compact_model = ModelCard(id="test-1b", name="Test 1B", provider="mock", parameter_size="1B")
     assert HardwareProfile.assess_model_fit(compact_model, 8.0) == "optimal"
 
-    heavy_model = ModelCard(
-        id="test-70b", name="Test 70B", provider="mock", parameter_size="70B"
-    )
+    heavy_model = ModelCard(id="test-70b", name="Test 70B", provider="mock", parameter_size="70B")
     assert HardwareProfile.assess_model_fit(heavy_model, 16.0) == "heavy"
 
 

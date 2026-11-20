@@ -1,27 +1,27 @@
 """User preferences, system configuration, and persona profile endpoints."""
 
-from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
 from packages.shared_schemas.profiles import (
+    PROFILES,
     ProfileDefinition,
     get_profile,
     list_profiles,
-    PROFILES,
 )
-from services.api.dependencies import get_repository, get_gateway
+from services.api.config import settings
+from services.api.dependencies import get_gateway, get_repository
 from services.memory.repository import MemoryRepository
 from services.model_gateway.registry import ModelRegistry
-from services.api.config import settings
 
 router = APIRouter(prefix="/api/v1", tags=["Settings & Profiles"])
 
 
 class UpdateSettingsRequest(BaseModel):
-    settings: Dict[str, str]
+    settings: dict[str, str]
 
 
-@router.get("/profiles", response_model=List[ProfileDefinition])
+@router.get("/profiles", response_model=list[ProfileDefinition])
 async def get_profiles():
     """List available persona profiles (Personal, Developer, Business, Creator)."""
     return list_profiles()

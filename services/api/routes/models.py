@@ -1,11 +1,11 @@
 """Model management and hardware profile endpoints."""
 
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
 from packages.shared_schemas.models import ModelCard
 from services.api.dependencies import get_gateway
-from services.model_gateway.registry import ModelRegistry, HardwareProfile
+from services.model_gateway.registry import HardwareProfile, ModelRegistry
 
 router = APIRouter(prefix="/api/v1/models", tags=["Models"])
 
@@ -18,7 +18,7 @@ class OfflineToggleRequest(BaseModel):
     force_offline: bool
 
 
-@router.get("", response_model=List[ModelCard])
+@router.get("", response_model=list[ModelCard])
 async def list_models(gateway: ModelRegistry = Depends(get_gateway)):
     """List all available models with hardware fit and installation status."""
     return await gateway.list_models()

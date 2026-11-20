@@ -1,6 +1,5 @@
 """Profile definitions and templates for Personal, Developer, Business, and Creator personas."""
 
-from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -17,11 +16,11 @@ class ProfileDefinition(BaseModel):
     system_prompt: str
     default_temperature: float = 0.7
     permission_preset: str = "standard"  # standard, sandboxed, corporate, creative
-    suggested_models: List[str] = Field(default_factory=list)
-    templates: List[ProfileTemplate] = Field(default_factory=list)
+    suggested_models: list[str] = Field(default_factory=list)
+    templates: list[ProfileTemplate] = Field(default_factory=list)
 
 
-PROFILES: Dict[str, ProfileDefinition] = {
+PROFILES: dict[str, ProfileDefinition] = {
     "personal": ProfileDefinition(
         id="personal",
         name="Personal Assistant",
@@ -150,6 +149,6 @@ def get_profile(profile_id: str) -> ProfileDefinition:
     return PROFILES.get(profile_id.lower(), PROFILES["personal"])
 
 
-def list_profiles() -> List[ProfileDefinition]:
+def list_profiles() -> list[ProfileDefinition]:
     """Return all configured profile definitions."""
     return list(PROFILES.values())

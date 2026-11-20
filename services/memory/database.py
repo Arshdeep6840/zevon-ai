@@ -2,26 +2,18 @@
 
 import os
 from pathlib import Path
+from typing import AsyncGenerator, Optional
 import aiosqlite
-from typing import AsyncGenerator
 
 DEFAULT_DB_PATH = os.getenv("ZEVON_DB_PATH", "zevon.db")
+_initialized_dbs = set()
 
 
-async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
-    """Yield an async database connection."""
-    db_path = Path(DEFAULT_DB_PATH)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(str(db_path)) as conn:
-        conn.row_factory = aiosqlite.Row
-        await conn.execute("PRAGMA foreign_keys = ON;")
-        yield conn
-
-
-async def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
+async def init_db(db_path: Optional[str] = None) -> None:
     """Initialize SQLite schema for local persistence."""
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(db_path) as conn:
+    path = db_path or os.getenv("ZEVON_DB_PATH", DEFAULT_DB_PATH)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    async with aiosqlite.connect(path) as conn:
         await conn.execute("PRAGMA foreign_keys = ON;")
 
         # Conversations table
@@ -74,3 +66,16 @@ async def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
         """)
 
         await conn.commit()
+    _initialized_dbs.add(str(path))
+
+
+async def get_db(db_path: Optional[str] = None) -> AsyncGenerator[aiosqlite.Connection, None]:
+    """Yield an async database connection, ensuring schema exists."""
+    path = str(db_path or os.getenv("ZEVON_DB_PATH", DEFAULT_DB_PATH))
+    if path not in _initialized_dbs:
+        await init_db(path)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    async with aiosqlite.connect(path) as conn:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA foreign_keys = ON;")
+        yield conn

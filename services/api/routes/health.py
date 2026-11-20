@@ -1,11 +1,13 @@
 """Health and readiness check endpoints."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends
-from services.api.dependencies import get_gateway, get_repository
-from services.model_gateway.registry import ModelRegistry
-from services.memory.repository import MemoryRepository
+
 from services.api.config import settings
-from datetime import datetime
+from services.api.dependencies import get_gateway, get_repository
+from services.memory.repository import MemoryRepository
+from services.model_gateway.registry import ModelRegistry
 
 router = APIRouter(prefix="/api/v1", tags=["Health"])
 
@@ -29,7 +31,7 @@ async def health_check(
         "status": "healthy" if db_healthy else "degraded",
         "app": settings.app_name,
         "version": settings.version,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "database": {
             "status": "connected" if db_healthy else "disconnected",
             "path": settings.db_path,

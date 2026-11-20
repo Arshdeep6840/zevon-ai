@@ -1,9 +1,8 @@
 """Test configuration and fixtures for Zevon test suite."""
 
-import os
-import pytest
 import aiosqlite
-from pathlib import Path
+import pytest
+
 from services.memory.database import init_db
 from services.memory.repository import MemoryRepository
 from services.model_gateway.registry import ModelRegistry

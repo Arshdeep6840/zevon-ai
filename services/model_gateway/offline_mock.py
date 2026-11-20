@@ -1,9 +1,12 @@
 """Offline embedded provider for testing and zero-dependency local assistant mode."""
 
 import asyncio
-from typing import AsyncIterator, List, Optional, Dict, Any
+from collections.abc import AsyncIterator
 from datetime import datetime
-from packages.shared_schemas.models import Message, ModelCard, Role
+from typing import Any
+
+from packages.shared_schemas.models import Message, ModelCard
+
 from .base import BaseModelProvider
 
 
@@ -39,15 +42,15 @@ class OfflineMockProvider(BaseModelProvider):
     async def check_health(self) -> bool:
         return True
 
-    async def list_models(self) -> List[ModelCard]:
+    async def list_models(self) -> list[ModelCard]:
         return self.models
 
     async def stream_chat(
         self,
-        messages: List[Message],
+        messages: list[Message],
         model_name: str,
         temperature: float = 0.7,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
         last_msg = messages[-1].content if messages else "Hello"
         prompt_lower = last_msg.lower().strip()
@@ -88,7 +91,7 @@ class OfflineMockProvider(BaseModelProvider):
             )
         else:
             return (
-                f"Hello! I received your message: *\"{original}\"*\n\n"
+                f'Hello! I received your message: *"{original}"*\n\n'
                 f"I am operating in **local offline mode**. You can chat with me, manage conversations, "
                 f"or connect local Ollama models (`qwen2.5`, `deepseek-r1`, `llama3.2`) for full neural generation."
             )

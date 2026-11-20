@@ -1,17 +1,18 @@
 """FastAPI entrypoint and application factory for Zevon."""
 
-import os
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import uvicorn
+from fastapi.staticfiles import StaticFiles
 
 from services.api.config import settings
+from services.api.routes import chat, conversations, health, models, realtime
+from services.api.routes import settings as settings_routes
 from services.memory.database import init_db
-from services.api.routes import health, models, chat, realtime, conversations, settings as settings_routes
 
 STATIC_DIR = Path(__file__).parent / "static"
 

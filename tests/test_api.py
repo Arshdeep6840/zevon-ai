@@ -1,10 +1,12 @@
 """Integration tests for FastAPI endpoints and WebSocket."""
 
-import pytest
 import json
+
+import pytest
 from fastapi.testclient import TestClient
-from services.api.main import app
+
 from services.api.config import settings
+from services.api.main import app
 from services.memory.database import init_db
 
 
@@ -140,13 +142,17 @@ def test_realtime_websocket(client):
         assert pong.get("type") == "pong"
 
         # Test chat streaming
-        ws.send_text(json.dumps({
-            "type": "chat",
-            "message": "Who are you?",
-        }))
+        ws.send_text(
+            json.dumps(
+                {
+                    "type": "chat",
+                    "message": "Who are you?",
+                }
+            )
+        )
 
         received_types = []
-        for _ in range(25):
+        for _ in range(60):
             msg = json.loads(ws.receive_text())
             received_types.append(msg.get("type"))
             if msg.get("type") in ["done", "error"]:

@@ -1,21 +1,25 @@
 """Model Registry and Orchestration Gateway for local model providers."""
 
 import os
-from typing import AsyncIterator, Dict, List, Optional, Any
+from collections.abc import AsyncIterator
+from typing import Any
+
 from packages.shared_schemas.models import Message, ModelCard
+
 from .base import BaseModelProvider
-from .ollama import OllamaProvider
 from .offline_mock import OfflineMockProvider
+from .ollama import OllamaProvider
 
 
 class HardwareProfile:
     @staticmethod
-    def get_hardware_info() -> Dict[str, Any]:
+    def get_hardware_info() -> dict[str, Any]:
         """Detect local CPU cores, RAM, and recommend model parameters."""
         ram_gb = 8.0
         cpu_count = os.cpu_count() or 4
         try:
             import psutil
+
             ram_bytes = psutil.virtual_memory().total
             ram_gb = round(ram_bytes / (1024**3), 1)
         except Exception:
@@ -24,15 +28,21 @@ class HardwareProfile:
         if ram_gb < 12.0:
             recommended_tier = "compact"
             recommended_param_size = "1B - 3B"
-            description = "Low-memory footprint; optimized for fast CPU inference and compact models."
+            description = (
+                "Low-memory footprint; optimized for fast CPU inference and compact models."
+            )
         elif ram_gb < 24.0:
             recommended_tier = "balanced"
             recommended_param_size = "7B - 8B"
-            description = "Standard desktop profile; capable of running 7B-8B quantized models smoothly."
+            description = (
+                "Standard desktop profile; capable of running 7B-8B quantized models smoothly."
+            )
         else:
             recommended_tier = "performance"
             recommended_param_size = "14B - 32B"
-            description = "High-memory workstation; capable of running large models and deep reasoning tasks."
+            description = (
+                "High-memory workstation; capable of running large models and deep reasoning tasks."
+            )
 
         return {
             "ram_gb": ram_gb,
@@ -57,7 +67,7 @@ class HardwareProfile:
 
 class ModelRegistry:
     def __init__(self, ollama_url: str = "http://localhost:11434"):
-        self.providers: Dict[str, BaseModelProvider] = {
+        self.providers: dict[str, BaseModelProvider] = {
             "offline-embedded": OfflineMockProvider(),
             "ollama": OllamaProvider(base_url=ollama_url),
         }
@@ -74,11 +84,11 @@ class ModelRegistry:
     def set_force_offline(self, enabled: bool) -> None:
         self.force_offline = enabled
 
-    async def list_models(self) -> List[ModelCard]:
+    async def list_models(self) -> list[ModelCard]:
         hw = HardwareProfile.get_hardware_info()
         ram_gb = hw["ram_gb"]
 
-        all_models: List[ModelCard] = []
+        all_models: list[ModelCard] = []
         # If force_offline is true, only return offline-embedded
         for provider_name, provider in self.providers.items():
             if self.force_offline and provider_name != "offline-embedded":
@@ -86,7 +96,7 @@ class ModelRegistry:
             try:
                 models = await provider.list_models()
                 for m in models:
-                    m.is_active = (m.id == self.active_model_id)
+                    m.is_active = m.id == self.active_model_id
                     fit = HardwareProfile.assess_model_fit(m, ram_gb)
                     # Enrich description with fit rating if not present
                     if not m.description:
@@ -102,14 +112,14 @@ class ModelRegistry:
 
         return all_models
 
-    async def get_active_model(self) -> Optional[ModelCard]:
+    async def get_active_model(self) -> ModelCard | None:
         models = await self.list_models()
         for m in models:
             if m.id == self.active_model_id:
                 return m
         return models[0] if models else None
 
-    async def check_health(self) -> Dict[str, Any]:
+    async def check_health(self) -> dict[str, Any]:
         hw = HardwareProfile.get_hardware_info()
         provider_health = {}
         for name, provider in self.providers.items():
@@ -132,15 +142,15 @@ class ModelRegistry:
 
     async def stream_chat(
         self,
-        messages: List[Message],
-        model_name: Optional[str] = None,
+        messages: list[Message],
+        model_name: str | None = None,
         temperature: float = 0.7,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
         target_model_id = model_name or self.active_model_id
 
         # Determine target provider
-        selected_provider: Optional[BaseModelProvider] = None
+        selected_provider: BaseModelProvider | None = None
         if not self.force_offline:
             # Check if model exists in Ollama
             ollama_provider = self.providers.get("ollama")
@@ -165,7 +175,7 @@ class ModelRegistry:
             yield chunk
 
 
-_global_registry: Optional[ModelRegistry] = None
+_global_registry: ModelRegistry | None = None
 
 
 def get_model_registry(ollama_url: str = "http://localhost:11434") -> ModelRegistry:
