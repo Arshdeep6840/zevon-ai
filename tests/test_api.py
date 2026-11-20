@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from services.api.config import settings
 from services.api.main import app
-from services.memory.database import init_db
 from services.model_gateway.registry import get_model_registry
 
 
