@@ -89,7 +89,13 @@ function setupEventListeners() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model_id: currentModelId }),
     });
+    updateStatusPill();
   });
+
+  const testOllamaBtn = document.getElementById("test-ollama-btn");
+  if (testOllamaBtn) {
+    testOllamaBtn.addEventListener("click", handleTestOllamaConnection);
+  }
 
   exportBtn.addEventListener("click", handleExportConversation);
 
@@ -183,7 +189,8 @@ async function loadModels() {
     modelsData.forEach((m) => {
       const opt = document.createElement("option");
       opt.value = m.id;
-      opt.textContent = `${m.name} (${m.parameter_size})`;
+      const tag = m.provider === "ollama" ? "⚡ Ollama" : "📦 Embedded";
+      opt.textContent = `${tag}: ${m.name} (${m.parameter_size})`;
       if (m.is_active) {
         opt.selected = true;
         currentModelId = m.id;
@@ -191,18 +198,25 @@ async function loadModels() {
       modelSelectEl.appendChild(opt);
     });
 
-    const activeModel = modelsData.find((m) => m.id === currentModelId);
-    if (statusPillEl) {
-      if (activeModel && activeModel.provider === "offline-embedded") {
-        statusPillEl.textContent = "Offline Mode";
-        statusPillEl.className = "px-2 py-0.5 text-xs rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800";
-      } else {
-        statusPillEl.textContent = "Local Connected";
-        statusPillEl.className = "px-2 py-0.5 text-xs rounded-full bg-blue-950 text-blue-400 border border-blue-800";
-      }
-    }
+    updateStatusPill();
   } catch (err) {
     console.error("Failed to load models:", err);
+  }
+}
+
+function updateStatusPill() {
+  const activeModel = modelsData.find((m) => m.id === currentModelId);
+  if (statusPillEl) {
+    if (activeModel && activeModel.provider === "ollama") {
+      statusPillEl.textContent = `Local: ${activeModel.name}`;
+      statusPillEl.className = "px-2 py-0.5 text-xs rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-medium";
+    } else if (activeModel && activeModel.provider === "offline-embedded") {
+      statusPillEl.textContent = "Offline Mode";
+      statusPillEl.className = "px-2 py-0.5 text-xs rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-medium";
+    } else {
+      statusPillEl.textContent = "Local Connected";
+      statusPillEl.className = "px-2 py-0.5 text-xs rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-medium";
+    }
   }
 }
 
@@ -522,23 +536,69 @@ async function handleExportConversation() {
   }
 }
 
+// Test Ollama Connection
+async function handleTestOllamaConnection() {
+  const btn = document.getElementById("test-ollama-btn");
+  const resultEl = document.getElementById("ollama-test-result");
+  const inputEl = document.getElementById("setting-ollama-url");
+  const targetUrl = (inputEl ? inputEl.value : "").trim() || "http://localhost:11434";
+
+  if (!resultEl) return;
+  resultEl.classList.remove("hidden");
+  resultEl.className = "text-xs mt-1.5 text-slate-400";
+  resultEl.textContent = "Connecting to Ollama...";
+
+  if (btn) btn.disabled = true;
+
+  try {
+    // Send update temporarily to check target
+    await fetch("/api/v1/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: { ollama_url: targetUrl } }),
+    });
+
+    const res = await fetch("/api/v1/health");
+    const data = await res.json();
+    const ollamaOk = data?.model_runtime?.providers?.ollama;
+
+    if (ollamaOk) {
+      await loadModels();
+      const count = modelsData.filter((m) => m.provider === "ollama").length;
+      resultEl.className = "text-xs mt-1.5 text-emerald-400 font-medium";
+      resultEl.textContent = `✓ Connected! Found ${count} local Ollama model(s).`;
+    } else {
+      resultEl.className = "text-xs mt-1.5 text-rose-400 font-medium";
+      resultEl.textContent = `✗ Could not connect to Ollama at ${targetUrl}. Is 'ollama serve' running?`;
+    }
+  } catch (err) {
+    resultEl.className = "text-xs mt-1.5 text-rose-400 font-medium";
+    resultEl.textContent = `✗ Connection error: ${err.message}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // Save Settings
 async function handleSaveSettings() {
-  const ollamaUrl = document.getElementById("setting-ollama-url").value.trim();
-  const defProfile = document.getElementById("setting-default-profile").value;
+  const ollamaUrl = document.getElementById("setting-ollama-url")?.value?.trim();
+  const defProfile = document.getElementById("setting-default-profile")?.value;
+  const isForceOffline = forceOfflineToggle ? forceOfflineToggle.checked : false;
+
+  const newSettings = {};
+  if (defProfile) newSettings.active_profile = defProfile;
+  if (ollamaUrl) newSettings.ollama_url = ollamaUrl;
+  newSettings.force_offline = isForceOffline ? "true" : "false";
 
   await fetch("/api/v1/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      settings: {
-        active_profile: defProfile,
-      },
-    }),
+    body: JSON.stringify({ settings: newSettings }),
   });
 
   settingsModal.classList.add("hidden");
   await loadSettings();
+  await loadModels();
 }
 
 // Clear all data

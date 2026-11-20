@@ -4,7 +4,45 @@ import pytest
 
 from packages.shared_schemas.models import Message, ModelCard, Role
 from services.model_gateway.offline_mock import OfflineMockProvider
+from services.model_gateway.ollama import OllamaProvider
 from services.model_gateway.registry import HardwareProfile, ModelRegistry
+
+
+@pytest.mark.asyncio
+async def test_ollama_provider_parsing_and_filtering():
+    from unittest.mock import AsyncMock, patch
+
+    provider = OllamaProvider(base_url="http://mock-ollama:11434")
+    mock_tags = {
+        "models": [
+            {
+                "name": "nomic-embed-text:latest",
+                "capabilities": ["embedding"],
+                "details": {"family": "nomic-bert", "parameter_size": "137M"},
+            },
+            {
+                "name": "qwen3:1.7b",
+                "capabilities": ["completion", "tools"],
+                "details": {
+                    "family": "qwen3",
+                    "parameter_size": "2.0B",
+                    "quantization_level": "Q4_K_M",
+                },
+            },
+        ]
+    }
+
+    with patch("httpx.AsyncClient.get") as mock_get:
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.json = lambda: mock_tags
+        mock_get.return_value = mock_resp
+
+        models = await provider.list_models()
+        assert len(models) == 1
+        assert models[0].id == "qwen3:1.7b"
+        assert models[0].provider == "ollama"
+        assert models[0].parameter_size == "2.0B"
 
 
 @pytest.mark.asyncio

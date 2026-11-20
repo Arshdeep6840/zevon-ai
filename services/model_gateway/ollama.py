@@ -13,6 +13,9 @@ from .base import BaseModelProvider
 
 class OllamaProvider(BaseModelProvider):
     def __init__(self, base_url: str = "http://localhost:11434"):
+        self.set_base_url(base_url)
+
+    def set_base_url(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
 
     async def check_health(self) -> bool:
@@ -32,17 +35,42 @@ class OllamaProvider(BaseModelProvider):
                     models = []
                     for item in data.get("models", []):
                         name = item.get("name", "unknown")
+                        capabilities = item.get("capabilities", [])
+
+                        # Exclude pure embedding models from chat models list
+                        if (
+                            capabilities
+                            and "completion" not in capabilities
+                            and "embedding" in capabilities
+                        ):
+                            continue
+                        if "embed" in name.lower() and "completion" not in capabilities:
+                            continue
+
+                        details = item.get("details", {}) or {}
+                        param_size = str(details.get("parameter_size", "unknown"))
+                        quant = details.get("quantization_level")
+                        ctx_len = details.get("context_length", 4096)
+                        family = details.get("family", "")
+
+                        desc_parts = ["Local Ollama"]
+                        if family:
+                            desc_parts.append(family.capitalize())
+                        if param_size != "unknown":
+                            desc_parts.append(param_size)
+                        if quant:
+                            desc_parts.append(quant)
+
                         models.append(
                             ModelCard(
                                 id=name,
                                 name=name,
                                 provider="ollama",
-                                parameter_size=str(
-                                    item.get("details", {}).get("parameter_size", "unknown")
-                                ),
-                                quantization=item.get("details", {}).get("quantization_level"),
+                                parameter_size=param_size,
+                                quantization=quant,
+                                context_length=ctx_len if isinstance(ctx_len, int) else 4096,
                                 is_installed=True,
-                                description=f"Local Ollama model: {name}",
+                                description=" • ".join(desc_parts),
                             )
                         )
                     return models
@@ -71,18 +99,18 @@ class OllamaProvider(BaseModelProvider):
             httpx.AsyncClient(timeout=60.0) as client,
             client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response,
         ):
-                if response.status_code != 200:
-                    error_text = await response.aread()
-                    yield f"Error from Ollama ({response.status_code}): {error_text.decode('utf-8', errors='ignore')}"
-                    return
+            if response.status_code != 200:
+                error_text = await response.aread()
+                yield f"Error from Ollama ({response.status_code}): {error_text.decode('utf-8', errors='ignore')}"
+                return
 
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    try:
-                        chunk = json.loads(line)
-                        delta = chunk.get("message", {}).get("content", "")
-                        if delta:
-                            yield delta
-                    except json.JSONDecodeError:
-                        continue
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                    delta = chunk.get("message", {}).get("content", "")
+                    if delta:
+                        yield delta
+                except json.JSONDecodeError:
+                    continue

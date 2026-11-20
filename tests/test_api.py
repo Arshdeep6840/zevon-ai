@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from services.api.config import settings
 from services.api.main import app
 from services.memory.database import init_db
+from services.model_gateway.registry import get_model_registry
 
 
 @pytest.fixture(autouse=True)
@@ -16,6 +17,8 @@ async def setup_test_database(tmp_path):
     test_db = str(tmp_path / "api_test.db")
     settings.db_path = test_db
     await init_db(test_db)
+    get_model_registry().set_force_offline(True)
+    get_model_registry().set_active_model("zevon-offline-compact")
 
 
 @pytest.fixture

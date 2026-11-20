@@ -68,10 +68,11 @@ class HardwareProfile:
 class ModelRegistry:
     def __init__(self, ollama_url: str = "http://localhost:11434"):
         self.providers: dict[str, BaseModelProvider] = {
-            "offline-embedded": OfflineMockProvider(),
             "ollama": OllamaProvider(base_url=ollama_url),
+            "offline-embedded": OfflineMockProvider(),
         }
-        self.active_model_id: str = "zevon-offline-compact"
+        self.active_model_id: str | None = None
+        self._user_selected: bool = False
         self.force_offline: bool = False
 
     def register_provider(self, name: str, provider: BaseModelProvider) -> None:
@@ -79,10 +80,15 @@ class ModelRegistry:
 
     def set_active_model(self, model_id: str) -> bool:
         self.active_model_id = model_id
+        self._user_selected = True
         return True
 
     def set_force_offline(self, enabled: bool) -> None:
         self.force_offline = enabled
+
+    def update_ollama_url(self, ollama_url: str) -> None:
+        if "ollama" in self.providers and hasattr(self.providers["ollama"], "set_base_url"):
+            self.providers["ollama"].set_base_url(ollama_url)
 
     async def list_models(self) -> list[ModelCard]:
         hw = HardwareProfile.get_hardware_info()
@@ -96,16 +102,25 @@ class ModelRegistry:
             try:
                 models = await provider.list_models()
                 for m in models:
-                    m.is_active = m.id == self.active_model_id
                     fit = HardwareProfile.assess_model_fit(m, ram_gb)
-                    # Enrich description with fit rating if not present
                     if not m.description:
                         m.description = f"Hardware fit: {fit}"
                     all_models.append(m)
             except Exception:
                 continue
 
-        # If active model was not found in list, default back to offline compact
+        # If user has not explicitly locked an active model, auto-select the best available
+        if not self._user_selected or not self.active_model_id:
+            ollama_models = [m for m in all_models if m.provider == "ollama"]
+            if ollama_models and not self.force_offline:
+                self.active_model_id = ollama_models[0].id
+            elif all_models:
+                self.active_model_id = all_models[0].id
+
+        for m in all_models:
+            m.is_active = m.id == self.active_model_id
+
+        # If active model was not found in list, default back to first available
         if not any(m.is_active for m in all_models) and all_models:
             all_models[0].is_active = True
             self.active_model_id = all_models[0].id

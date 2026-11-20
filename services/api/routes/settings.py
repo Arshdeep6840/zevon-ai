@@ -68,5 +68,7 @@ async def update_settings(
             gateway.set_active_model(value)
         elif key == "force_offline":
             gateway.set_force_offline(value.lower() == "true")
+        elif key == "ollama_url":
+            gateway.update_ollama_url(value)
 
     return {"status": "success", "updated_keys": list(payload.settings.keys())}

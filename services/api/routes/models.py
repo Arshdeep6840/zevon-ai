@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from packages.shared_schemas.models import ModelCard
-from services.api.dependencies import get_gateway
+from services.api.dependencies import get_gateway, get_repository
+from services.memory.repository import MemoryRepository
 from services.model_gateway.registry import HardwareProfile, ModelRegistry
 
 router = APIRouter(prefix="/api/v1/models", tags=["Models"])
@@ -37,6 +38,7 @@ async def get_active_model(gateway: ModelRegistry = Depends(get_gateway)):
 async def set_active_model(
     payload: SelectModelRequest,
     gateway: ModelRegistry = Depends(get_gateway),
+    repo: MemoryRepository = Depends(get_repository),
 ):
     """Switch active model and runtime adapter."""
     models = await gateway.list_models()
@@ -47,6 +49,10 @@ async def set_active_model(
             detail=f"Model '{payload.model_id}' is not installed or available.",
         )
     gateway.set_active_model(payload.model_id)
+    try:
+        await repo.set_setting("active_model_id", payload.model_id)
+    except Exception:
+        pass
     return {"status": "success", "active_model_id": payload.model_id}
 
 
