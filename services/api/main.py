@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from services.api.config import settings
-from services.api.routes import chat, conversations, health, models, realtime
+from services.api.routes import chat, conversations, health, models, realtime, voice
 from services.api.routes import settings as settings_routes
 from services.memory.database import init_db
 
@@ -50,6 +50,7 @@ app.include_router(conversations.router)
 app.include_router(settings_routes.router)
 app.include_router(chat.router)
 app.include_router(realtime.router)
+app.include_router(voice.router)
 
 # Mount Static Assets and Web UI
 if STATIC_DIR.exists():

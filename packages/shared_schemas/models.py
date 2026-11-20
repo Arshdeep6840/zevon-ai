@@ -26,6 +26,53 @@ class RiskLevel(str, Enum):
     R3 = "R3"  # High impact / critical
 
 
+class VoiceState(str, Enum):
+    IDLE = "idle"
+    WAKE_DETECTED = "wake_detected"
+    LISTENING = "listening"
+    TRANSCRIBING = "transcribing"
+    THINKING = "thinking"
+    SPEAKING = "speaking"
+    INTERRUPTED = "interrupted"
+    WAITING_APPROVAL = "waiting_approval"
+    ERROR = "error"
+    MIC_UNAVAILABLE = "mic_unavailable"
+
+
+class VoiceSettings(BaseModel):
+    wake_word_enabled: bool = True
+    wake_word_phrase: str = "Hey Zevon"
+    wake_word_sensitivity: float = 0.6
+    tts_enabled: bool = True
+    tts_voice: str = "en_US-lessac-medium"
+    tts_speed: float = 1.0
+    tts_volume: float = 1.0
+    tts_muted: bool = False
+    auto_barge_in: bool = True
+    push_to_talk_key: str = "Space"
+
+
+class TranscriptionResult(BaseModel):
+    text: str
+    language: str = "en"
+    duration_seconds: float = 0.0
+    confidence: float = 1.0
+
+
+class SpeakRequest(BaseModel):
+    text: str
+    voice: str | None = None
+    speed: float = 1.0
+    pitch: float = 1.0
+    volume: float = 1.0
+
+
+class WakeCheckRequest(BaseModel):
+    text: str | None = None
+    audio_base64: str | None = None
+    sensitivity: float = 0.6
+
+
 class Message(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     conversation_id: str

@@ -35,6 +35,39 @@ const saveSettingsBtn = document.getElementById("save-settings-btn");
 const forceOfflineToggle = document.getElementById("force-offline-toggle");
 const clearAllBtn = document.getElementById("clear-all-btn");
 
+// Voice Elements (Phase 2)
+const micBtn = document.getElementById("mic-btn");
+const voiceOverlay = document.getElementById("voice-overlay");
+const closeVoiceOverlayBtn = document.getElementById("close-voice-overlay-btn");
+const voiceOrb = document.getElementById("voice-orb");
+const voiceStatePill = document.getElementById("voice-state-pill");
+const voiceLiveTranscript = document.getElementById("voice-live-transcript");
+const voiceBargeinBtn = document.getElementById("voice-bargein-btn");
+const voiceSendBtn = document.getElementById("voice-send-btn");
+const voiceVadIndicator = document.getElementById("voice-vad-indicator");
+const voiceEnabledToggle = document.getElementById("voice-enabled-toggle");
+const voiceWakePhraseInput = document.getElementById("voice-wake-phrase");
+const voiceWakeSensitivityInput = document.getElementById("voice-wake-sensitivity");
+const voiceTtsSelect = document.getElementById("voice-tts-select");
+const voiceTtsSpeed = document.getElementById("voice-tts-speed");
+const voiceSpeedVal = document.getElementById("voice-speed-val");
+const voiceAutoBargeinToggle = document.getElementById("voice-auto-bargein");
+
+// Voice State
+let voiceCurrentState = "idle";
+let speechRecognitionInstance = null;
+let currentTTSAudio = null;
+let isPushToTalkActive = false;
+let voiceSettingsData = {
+  wake_word_enabled: true,
+  wake_word_phrase: "Hey Zevon",
+  wake_word_sensitivity: 0.6,
+  tts_enabled: true,
+  tts_voice: "en_US-lessac-medium",
+  tts_speed: 1.0,
+  auto_barge_in: true,
+};
+
 // Initialize application
 async function init() {
   setupEventListeners();
@@ -42,6 +75,8 @@ async function init() {
   await loadHardware();
   await loadModels();
   await loadSettings();
+  await loadVoiceSettings();
+  initVoiceAssistant();
   await loadConversations();
 
   // If no conversation selected, show welcome
@@ -119,6 +154,37 @@ function setupEventListeners() {
       body: JSON.stringify({ force_offline: forced }),
     });
     await loadModels();
+  });
+
+  // Voice Event Listeners (Phase 2)
+  if (micBtn) micBtn.addEventListener("click", () => openVoiceOverlay());
+  if (closeVoiceOverlayBtn) closeVoiceOverlayBtn.addEventListener("click", () => closeVoiceOverlay());
+  if (voiceBargeinBtn) voiceBargeinBtn.addEventListener("click", () => handleVoiceBargeIn());
+  if (voiceSendBtn) voiceSendBtn.addEventListener("click", () => handleVoiceSend());
+
+  if (voiceTtsSpeed && voiceSpeedVal) {
+    voiceTtsSpeed.addEventListener("input", (e) => {
+      voiceSpeedVal.textContent = `${e.target.value}x`;
+    });
+  }
+
+  // Push-to-Talk via Spacebar (when not typing in an input)
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && document.activeElement !== messageInputEl && document.activeElement !== voiceLiveTranscript) {
+      if (!isPushToTalkActive) {
+        e.preventDefault();
+        isPushToTalkActive = true;
+        handlePushToTalk(true);
+      }
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space" && isPushToTalkActive) {
+      e.preventDefault();
+      isPushToTalkActive = false;
+      handlePushToTalk(false);
+    }
   });
 }
 
@@ -494,6 +560,11 @@ async function handleSendMessage() {
     scrollToBottom();
     await loadConversations();
 
+    // If Voice mode or TTS enabled, speak assistant output
+    if (accumulatedText && voiceSettingsData.tts_enabled && voiceOverlay && !voiceOverlay.classList.contains("hidden")) {
+      playTTSAudio(accumulatedText);
+    }
+
   } catch (err) {
     if (err.name === "AbortError") {
       assistantBubble.innerHTML = renderMarkdown(accumulatedText + "\n\n*(Generation stopped)*");
@@ -513,6 +584,7 @@ function handleStopGeneration() {
   if (abortController) {
     abortController.abort();
   }
+  handleVoiceBargeIn();
 }
 
 // Export conversation
@@ -596,9 +668,208 @@ async function handleSaveSettings() {
     body: JSON.stringify({ settings: newSettings }),
   });
 
+  // Save Voice Settings (Phase 2)
+  if (voiceEnabledToggle) {
+    const updatedVoice = {
+      wake_word_enabled: voiceEnabledToggle.checked,
+      wake_word_phrase: voiceWakePhraseInput?.value?.trim() || "Hey Zevon",
+      wake_word_sensitivity: parseFloat(voiceWakeSensitivityInput?.value || 0.6),
+      tts_enabled: true,
+      tts_voice: voiceTtsSelect?.value || "en_US-lessac-medium",
+      tts_speed: parseFloat(voiceTtsSpeed?.value || 1.0),
+      tts_volume: 1.0,
+      tts_muted: false,
+      auto_barge_in: voiceAutoBargeinToggle ? voiceAutoBargeinToggle.checked : true,
+      push_to_talk_key: "Space",
+    };
+
+    await fetch("/api/v1/voice/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedVoice),
+    });
+    voiceSettingsData = updatedVoice;
+  }
+
   settingsModal.classList.add("hidden");
   await loadSettings();
+  await loadVoiceSettings();
   await loadModels();
+}
+
+// Load Voice Settings
+async function loadVoiceSettings() {
+  try {
+    const res = await fetch("/api/v1/voice/settings");
+    if (res.ok) {
+      voiceSettingsData = await res.json();
+      if (voiceEnabledToggle) voiceEnabledToggle.checked = voiceSettingsData.wake_word_enabled;
+      if (voiceWakePhraseInput) voiceWakePhraseInput.value = voiceSettingsData.wake_word_phrase;
+      if (voiceWakeSensitivityInput) voiceWakeSensitivityInput.value = voiceSettingsData.wake_word_sensitivity;
+      if (voiceTtsSelect) voiceTtsSelect.value = voiceSettingsData.tts_voice;
+      if (voiceTtsSpeed) voiceTtsSpeed.value = voiceSettingsData.tts_speed;
+      if (voiceSpeedVal) voiceSpeedVal.textContent = `${voiceSettingsData.tts_speed}x`;
+      if (voiceAutoBargeinToggle) voiceAutoBargeinToggle.checked = voiceSettingsData.auto_barge_in;
+    }
+  } catch (err) {
+    console.error("Failed to load voice settings:", err);
+  }
+}
+
+// Voice Assistant Initialization
+function initVoiceAssistant() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.warn("SpeechRecognition API not available in browser. Using manual voice transcription fallback.");
+    return;
+  }
+
+  try {
+    speechRecognitionInstance = new SpeechRecognition();
+    speechRecognitionInstance.continuous = true;
+    speechRecognitionInstance.interimResults = true;
+    speechRecognitionInstance.lang = "en-US";
+
+    speechRecognitionInstance.onresult = (event) => {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          const finalPart = item[0].transcript.trim();
+          if (voiceLiveTranscript) {
+            voiceLiveTranscript.value = finalPart;
+          }
+          checkWakeWord(finalPart);
+        } else {
+          interimTranscript += item[0].transcript;
+        }
+      }
+      if (interimTranscript && voiceLiveTranscript && !voiceLiveTranscript.value) {
+        voiceLiveTranscript.placeholder = interimTranscript;
+      }
+      // Auto barge-in if user speaks while TTS is playing
+      if (currentTTSAudio && voiceSettingsData.auto_barge_in) {
+        handleVoiceBargeIn();
+      }
+    };
+
+    speechRecognitionInstance.onerror = (event) => {
+      console.warn("SpeechRecognition error:", event.error);
+      if (event.error === "not-allowed") {
+        setVoiceState("mic_unavailable", "Mic Permission Denied");
+      }
+    };
+  } catch (err) {
+    console.error("Speech recognition initialization failed:", err);
+  }
+}
+
+function checkWakeWord(text) {
+  const phrase = (voiceSettingsData.wake_word_phrase || "Hey Zevon").toLowerCase();
+  if (text.toLowerCase().includes(phrase) || text.toLowerCase().includes("zevon")) {
+    setVoiceState("wake_detected", "Wake Detected: Zevon");
+    setTimeout(() => {
+      setVoiceState("listening", "Listening...");
+    }, 800);
+  }
+}
+
+function setVoiceState(state, label) {
+  voiceCurrentState = state;
+  if (voiceStatePill) {
+    voiceStatePill.textContent = label || state.toUpperCase();
+    const styleMap = {
+      idle: "bg-slate-800 text-slate-300 border-slate-700",
+      listening: "bg-cyan-950 text-cyan-300 border-cyan-700 shadow-cyan-900/50 animate-pulse",
+      wake_detected: "bg-indigo-950 text-indigo-300 border-indigo-700 animate-bounce",
+      transcribing: "bg-blue-950 text-blue-300 border-blue-700",
+      thinking: "bg-purple-950 text-purple-300 border-purple-700 animate-pulse",
+      speaking: "bg-emerald-950 text-emerald-300 border-emerald-700 shadow-emerald-900/50",
+      interrupted: "bg-red-950 text-red-300 border-red-700 animate-pulse",
+      mic_unavailable: "bg-red-950 text-red-400 border-red-800",
+    };
+    voiceStatePill.className = `px-4 py-1 rounded-full text-xs font-semibold tracking-wider uppercase mb-3 border ${styleMap[state] || styleMap.idle}`;
+  }
+
+  // Update Orb Glow
+  if (voiceOrb) {
+    if (state === "speaking") {
+      voiceOrb.className = "w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-600 to-cyan-600 flex items-center justify-center shadow-2xl shadow-emerald-500/50 cursor-pointer transform hover:scale-105 transition-all";
+    } else if (state === "interrupted") {
+      voiceOrb.className = "w-24 h-24 rounded-full bg-gradient-to-tr from-rose-500 to-red-600 flex items-center justify-center shadow-2xl shadow-red-500/50 cursor-pointer transform hover:scale-105 transition-all";
+    } else {
+      voiceOrb.className = "w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-2xl shadow-cyan-500/50 cursor-pointer transform hover:scale-105 transition-all";
+    }
+  }
+}
+
+function openVoiceOverlay() {
+  if (voiceOverlay) voiceOverlay.classList.remove("hidden");
+  setVoiceState("listening", "Listening...");
+  if (voiceLiveTranscript) {
+    voiceLiveTranscript.value = "";
+    voiceLiveTranscript.placeholder = "Say 'Hey Zevon' or speak your request...";
+  }
+  if (speechRecognitionInstance) {
+    try {
+      speechRecognitionInstance.start();
+    } catch (_) {}
+  }
+}
+
+function closeVoiceOverlay() {
+  if (voiceOverlay) voiceOverlay.classList.add("hidden");
+  setVoiceState("idle", "Idle");
+  if (speechRecognitionInstance) {
+    try {
+      speechRecognitionInstance.stop();
+    } catch (_) {}
+  }
+  if (currentTTSAudio) {
+    currentTTSAudio.pause();
+    currentTTSAudio = null;
+  }
+}
+
+function handleVoiceBargeIn() {
+  if (currentTTSAudio) {
+    currentTTSAudio.pause();
+    currentTTSAudio = null;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  setVoiceState("interrupted", "Interrupted (Barge-in)");
+  fetch("/api/v1/voice/state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify("interrupted"),
+  }).catch(() => {});
+
+  setTimeout(() => {
+    setVoiceState("listening", "Listening...");
+  }, 1000);
+}
+
+function handleVoiceSend() {
+  const text = (voiceLiveTranscript ? voiceLiveTranscript.value : "").trim();
+  if (!text) return;
+  closeVoiceOverlay();
+  messageInputEl.value = text;
+  messageInputEl.dispatchEvent(new Event("input"));
+  handleSendMessage();
+}
+
+function handlePushToTalk(isDown) {
+  if (isDown) {
+    openVoiceOverlay();
+    setVoiceState("listening", "Push-to-Talk (Active)");
+  } else {
+    setVoiceState("transcribing", "Transcribing...");
+    setTimeout(() => {
+      handleVoiceSend();
+    }, 400);
+  }
 }
 
 // Clear all data
