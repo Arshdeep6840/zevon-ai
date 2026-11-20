@@ -1,11 +1,20 @@
 """Repository for conversations, messages, and settings."""
 
 import json
+import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import aiosqlite
 
-from packages.shared_schemas.models import Conversation, Message, Role
+from packages.shared_schemas.models import (
+    Conversation,
+    Message,
+    Role,
+    TaskPlanStep,
+    TaskState,
+    TaskStatus,
+)
 
 
 def utc_now_iso() -> str:
@@ -176,3 +185,287 @@ class MemoryRepository:
             (key, value),
         )
         await self.conn.commit()
+
+    # --- Task Persistence ---
+
+    async def create_task(self, task: TaskState) -> TaskState:
+        plan_json = json.dumps([step.model_dump(mode="json") for step in task.plan])
+        artifacts_json = json.dumps(task.artifacts)
+        await self.conn.execute(
+            """
+            INSERT INTO tasks (id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                task.id,
+                task.conversation_id,
+                task.status.value,
+                task.prompt,
+                plan_json,
+                task.current_step,
+                artifacts_json,
+                task.created_at.isoformat(),
+                task.updated_at.isoformat(),
+            ),
+        )
+        await self.conn.commit()
+        return task
+
+    async def get_task(self, task_id: str) -> TaskState | None:
+        cursor = await self.conn.execute(
+            """
+            SELECT id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at
+            FROM tasks WHERE id = ?
+            """,
+            (task_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        raw_plan = json.loads(row["plan"]) if row["plan"] else []
+        plan = [TaskPlanStep.model_validate(s) for s in raw_plan]
+        artifacts = json.loads(row["artifacts"]) if row["artifacts"] else []
+        return TaskState(
+            id=row["id"],
+            conversation_id=row["conversation_id"],
+            status=TaskStatus(row["status"]),
+            prompt=row["prompt"],
+            plan=plan,
+            current_step=row["current_step"],
+            artifacts=artifacts,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
+    async def list_tasks(self, conversation_id: str | None = None) -> list[TaskState]:
+        if conversation_id:
+            cursor = await self.conn.execute(
+                """
+                SELECT id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at
+                FROM tasks WHERE conversation_id = ? ORDER BY created_at DESC
+                """,
+                (conversation_id,),
+            )
+        else:
+            cursor = await self.conn.execute(
+                """
+                SELECT id, conversation_id, status, prompt, plan, current_step, artifacts, created_at, updated_at
+                FROM tasks ORDER BY created_at DESC
+                """
+            )
+        rows = await cursor.fetchall()
+        tasks = []
+        for r in rows:
+            raw_plan = json.loads(r["plan"]) if r["plan"] else []
+            plan = [TaskPlanStep.model_validate(s) for s in raw_plan]
+            artifacts = json.loads(r["artifacts"]) if r["artifacts"] else []
+            tasks.append(
+                TaskState(
+                    id=r["id"],
+                    conversation_id=r["conversation_id"],
+                    status=TaskStatus(r["status"]),
+                    prompt=r["prompt"],
+                    plan=plan,
+                    current_step=r["current_step"],
+                    artifacts=artifacts,
+                    created_at=datetime.fromisoformat(r["created_at"]),
+                    updated_at=datetime.fromisoformat(r["updated_at"]),
+                )
+            )
+        return tasks
+
+    async def update_task(self, task: TaskState) -> TaskState:
+        now = utc_now_iso()
+        task.updated_at = datetime.fromisoformat(now)
+        plan_json = json.dumps([step.model_dump(mode="json") for step in task.plan])
+        artifacts_json = json.dumps(task.artifacts)
+        await self.conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, plan = ?, current_step = ?, artifacts = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                task.status.value,
+                plan_json,
+                task.current_step,
+                artifacts_json,
+                now,
+                task.id,
+            ),
+        )
+        await self.conn.commit()
+        return task
+
+    async def delete_task(self, task_id: str) -> bool:
+        cursor = await self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        await self.conn.commit()
+        return cursor.rowcount > 0
+
+    # --- Notes Persistence ---
+
+    async def create_note(
+        self, title: str, content: str, tags: list[str] | None = None
+    ) -> dict[str, Any]:
+        note_id = str(uuid.uuid4())
+        tags_json = json.dumps(tags or [])
+        now = utc_now_iso()
+        await self.conn.execute(
+            """
+            INSERT INTO notes (id, title, content, tags, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (note_id, title, content, tags_json, now, now),
+        )
+        await self.conn.commit()
+        return {
+            "id": note_id,
+            "title": title,
+            "content": content,
+            "tags": tags or [],
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    async def get_note(self, note_id: str) -> dict[str, Any] | None:
+        cursor = await self.conn.execute(
+            "SELECT id, title, content, tags, created_at, updated_at FROM notes WHERE id = ?",
+            (note_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "content": row["content"],
+            "tags": json.loads(row["tags"]) if row["tags"] else [],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    async def list_notes(self, query: str | None = None) -> list[dict[str, Any]]:
+        if query:
+            cursor = await self.conn.execute(
+                """
+                SELECT id, title, content, tags, created_at, updated_at
+                FROM notes
+                WHERE title LIKE ? OR content LIKE ?
+                ORDER BY updated_at DESC
+                """,
+                (f"%{query}%", f"%{query}%"),
+            )
+        else:
+            cursor = await self.conn.execute(
+                "SELECT id, title, content, tags, created_at, updated_at FROM notes ORDER BY updated_at DESC"
+            )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "content": r["content"],
+                "tags": json.loads(r["tags"]) if r["tags"] else [],
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    async def update_note(
+        self,
+        note_id: str,
+        title: str | None = None,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        note = await self.get_note(note_id)
+        if not note:
+            return None
+        new_title = title if title is not None else note["title"]
+        new_content = content if content is not None else note["content"]
+        new_tags = tags if tags is not None else note["tags"]
+        now = utc_now_iso()
+        await self.conn.execute(
+            """
+            UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = ? WHERE id = ?
+            """,
+            (new_title, new_content, json.dumps(new_tags), now, note_id),
+        )
+        await self.conn.commit()
+        return await self.get_note(note_id)
+
+    async def delete_note(self, note_id: str) -> bool:
+        cursor = await self.conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await self.conn.commit()
+        return cursor.rowcount > 0
+
+    # --- MCP Server Persistence ---
+
+    async def save_mcp_server(
+        self,
+        name: str,
+        transport: str,
+        command: str | None = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        url: str | None = None,
+        server_id: str | None = None,
+    ) -> dict[str, Any]:
+        sid = server_id or str(uuid.uuid4())
+        args_json = json.dumps(args or [])
+        env_json = json.dumps(env or {})
+        now = utc_now_iso()
+        await self.conn.execute(
+            """
+            INSERT INTO mcp_servers (id, name, transport, command, args, env, url, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                transport = excluded.transport,
+                command = excluded.command,
+                args = excluded.args,
+                env = excluded.env,
+                url = excluded.url
+            """,
+            (sid, name, transport, command, args_json, env_json, url, now),
+        )
+        await self.conn.commit()
+        return {
+            "id": sid,
+            "name": name,
+            "transport": transport,
+            "command": command,
+            "args": args or [],
+            "env": env or {},
+            "url": url,
+            "is_active": True,
+            "created_at": now,
+        }
+
+    async def list_mcp_servers(self) -> list[dict[str, Any]]:
+        cursor = await self.conn.execute(
+            "SELECT id, name, transport, command, args, env, url, is_active, created_at FROM mcp_servers ORDER BY created_at ASC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "transport": r["transport"],
+                "command": r["command"],
+                "args": json.loads(r["args"]) if r["args"] else [],
+                "env": json.loads(r["env"]) if r["env"] else {},
+                "url": r["url"],
+                "is_active": bool(r["is_active"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+
+    async def delete_mcp_server(self, server_id: str) -> bool:
+        cursor = await self.conn.execute(
+            "DELETE FROM mcp_servers WHERE id = ?", (server_id,)
+        )
+        await self.conn.commit()
+        return cursor.rowcount > 0

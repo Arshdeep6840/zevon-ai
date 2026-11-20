@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from services.api.config import settings
+import services.api.dependencies as deps
 from services.api.main import app
 from services.model_gateway.registry import get_model_registry
 
@@ -15,6 +16,11 @@ def setup_test_database(tmp_path):
     """Ensure a clean temporary database is used for API tests."""
     test_db = str(tmp_path / "api_test.db")
     settings.db_path = test_db
+    deps._tool_registry = None
+    deps._orchestrator = None
+    deps._mcp_manager = None
+    deps._zevon_mcp_server = None
+    deps._agent_dispatcher = None
     get_model_registry().set_force_offline(True)
     get_model_registry().set_active_model("zevon-offline-compact")
 
@@ -162,3 +168,85 @@ def test_realtime_websocket(client):
         assert "start" in received_types
         assert "delta" in received_types
         assert "done" in received_types
+
+
+def test_tools_api(client):
+    # List tools
+    res = client.get("/api/v1/tools")
+    assert res.status_code == 200
+    tools = res.json()
+    assert len(tools) >= 8
+    names = [t["name"] for t in tools]
+    assert "calculator" in names
+    assert "current_time" in names
+
+    # Execute R0 tool
+    res_exec = client.post("/api/v1/tools/execute", json={"name": "calculator", "arguments": {"expression": "12 * 12"}})
+    assert res_exec.status_code == 200
+    assert res_exec.json()["result"]["result"] == 144
+
+    # Audit trail
+    res_audit = client.get("/api/v1/tools/audit")
+    assert res_audit.status_code == 200
+    assert len(res_audit.json()) >= 1
+
+
+def test_tasks_api(client):
+    # Create task
+    res = client.post("/api/v1/tasks", json={"prompt": "Calculate 40 + 2"})
+    assert res.status_code == 200
+    task = res.json()
+    task_id = task["id"]
+    assert task["status"] in ["pending", "planning", "running", "completed"]
+
+    # Get task
+    res_get = client.get(f"/api/v1/tasks/{task_id}")
+    assert res_get.status_code == 200
+    assert res_get.json()["id"] == task_id
+
+    # List tasks
+    res_list = client.get("/api/v1/tasks")
+    assert res_list.status_code == 200
+    assert any(t["id"] == task_id for t in res_list.json())
+
+    # Cancel task
+    res_cancel = client.post(f"/api/v1/tasks/{task_id}/cancel")
+    assert res_cancel.status_code == 200
+
+
+def test_mcp_api(client):
+    # List MCP servers
+    res = client.get("/api/v1/mcp/servers")
+    assert res.status_code == 200
+
+    # Zevon MCP Messages endpoint
+    res_msg = client.post(
+        "/api/v1/mcp/messages",
+        json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    )
+    assert res_msg.status_code == 200
+    assert res_msg.json()["result"]["serverInfo"]["name"] == "zevon-mcp-server"
+
+
+def test_agents_api(client):
+    # List agents
+    res = client.get("/api/v1/agents")
+    assert res.status_code == 200
+    agents = res.json()
+    names = [a["name"] for a in agents]
+    assert "coder" in names
+    assert "researcher" in names
+
+    # Invoke agent non-streaming
+    res_invoke = client.post(
+        "/api/v1/agents/invoke",
+        json={
+            "target_agent": "researcher",
+            "instruction": "Test agent dispatch",
+            "stream_events": False,
+        },
+    )
+    assert res_invoke.status_code == 200
+    data = res_invoke.json()
+    assert data["status"] == "success"
+    assert "Test agent dispatch" in data["result_text"]

@@ -79,15 +79,41 @@ async def init_db(db_path: Optional[str] = None) -> None:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
-                conversation_id TEXT NOT NULL,
+                conversation_id TEXT,
                 status TEXT NOT NULL,
                 prompt TEXT NOT NULL,
                 plan TEXT NOT NULL,
                 current_step INTEGER DEFAULT 0,
                 artifacts TEXT DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # Notes table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS notes (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                tags TEXT DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # MCP servers table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS mcp_servers (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                transport TEXT NOT NULL,
+                command TEXT,
+                args TEXT DEFAULT '[]',
+                env TEXT DEFAULT '{}',
+                url TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
 
@@ -95,8 +121,8 @@ async def init_db(db_path: Optional[str] = None) -> None:
     _initialized_dbs.add(str(raw_path))
 
 
-async def get_db(db_path: Optional[str] = None) -> AsyncGenerator[aiosqlite.Connection, None]:
-    """Yield an async database connection, ensuring schema exists."""
+async def create_connection(db_path: Optional[str] = None) -> aiosqlite.Connection:
+    """Create and return an open aiosqlite Connection, ensuring schema is initialized."""
     raw_path = str(db_path or os.getenv("ZEVON_DB_PATH", DEFAULT_DB_PATH))
     if raw_path not in _initialized_dbs:
         await init_db(raw_path)
@@ -107,8 +133,17 @@ async def get_db(db_path: Optional[str] = None) -> AsyncGenerator[aiosqlite.Conn
     if is_uri:
         connect_kwargs["uri"] = True
 
-    async with aiosqlite.connect(target, **connect_kwargs) as conn:
-        conn.row_factory = aiosqlite.Row
-        await conn.execute("PRAGMA busy_timeout = 5000;")
-        await conn.execute("PRAGMA foreign_keys = ON;")
+    conn = await aiosqlite.connect(target, **connect_kwargs)
+    conn.row_factory = aiosqlite.Row
+    await conn.execute("PRAGMA busy_timeout = 5000;")
+    await conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
+
+
+async def get_db(db_path: Optional[str] = None) -> AsyncGenerator[aiosqlite.Connection, None]:
+    """Yield an async database connection, ensuring schema exists."""
+    conn = await create_connection(db_path)
+    try:
         yield conn
+    finally:
+        await conn.close()

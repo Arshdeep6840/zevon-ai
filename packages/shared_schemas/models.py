@@ -131,6 +131,7 @@ class TaskPlanStep(BaseModel):
     step_id: int
     title: str
     tool_name: str | None = None
+    arguments: dict[str, Any] = Field(default_factory=dict)
     status: str = "pending"
     risk_level: RiskLevel = RiskLevel.R0
     result: str | None = None

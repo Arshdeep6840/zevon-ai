@@ -53,6 +53,56 @@ const voiceTtsSpeed = document.getElementById("voice-tts-speed");
 const voiceSpeedVal = document.getElementById("voice-speed-val");
 const voiceAutoBargeinToggle = document.getElementById("voice-auto-bargein");
 
+// Phase 3 Elements (Tasks, Tools & MCP)
+const tabChat = document.getElementById("tab-chat");
+const tabTasks = document.getElementById("tab-tasks");
+const tabTools = document.getElementById("tab-tools");
+const viewChat = document.getElementById("view-chat");
+const viewTasks = document.getElementById("view-tasks");
+const viewTools = document.getElementById("view-tools");
+
+const taskPromptInput = document.getElementById("task-prompt-input");
+const runTaskBtn = document.getElementById("run-task-btn");
+const tasksList = document.getElementById("tasks-list");
+const refreshTasksBtn = document.getElementById("refresh-tasks-btn");
+const noTaskSelected = document.getElementById("no-task-selected");
+const taskDetailContent = document.getElementById("task-detail-content");
+const taskDetailStatus = document.getElementById("task-detail-status");
+const taskDetailTime = document.getElementById("task-detail-time");
+const taskDetailPrompt = document.getElementById("task-detail-prompt");
+const taskCancelBtn = document.getElementById("task-cancel-btn");
+const approvalGateCard = document.getElementById("approval-gate-card");
+const approvalGateDesc = document.getElementById("approval-gate-desc");
+const approvalGatePayload = document.getElementById("approval-gate-payload");
+const approveStepBtn = document.getElementById("approve-step-btn");
+const rejectStepBtn = document.getElementById("reject-step-btn");
+const taskStepsTimeline = document.getElementById("task-steps-timeline");
+const taskArtifactsSection = document.getElementById("task-artifacts-section");
+const taskArtifactsList = document.getElementById("task-artifacts-list");
+
+const addMcpBtn = document.getElementById("add-mcp-btn");
+const mcpModal = document.getElementById("mcp-modal");
+const closeMcpModalBtn = document.getElementById("close-mcp-modal-btn");
+const submitMcpBtn = document.getElementById("submit-mcp-btn");
+const mcpNameInput = document.getElementById("mcp-name-input");
+const mcpTransportSelect = document.getElementById("mcp-transport-select");
+const mcpCommandInput = document.getElementById("mcp-command-input");
+const mcpArgsInput = document.getElementById("mcp-args-input");
+const mcpUrlInput = document.getElementById("mcp-url-input");
+const mcpStdioFields = document.getElementById("mcp-stdio-fields");
+const mcpSseFields = document.getElementById("mcp-sse-fields");
+const mcpServersGrid = document.getElementById("mcp-servers-grid");
+const toolsCatalogGrid = document.getElementById("tools-catalog-grid");
+const toolsCatalogCount = document.getElementById("tools-catalog-count");
+const refreshAuditBtn = document.getElementById("refresh-audit-btn");
+const auditTableBody = document.getElementById("audit-table-body");
+
+// Phase 3 State
+let activeView = "chat";
+let currentTaskId = null;
+let currentPendingStepId = null;
+let taskPollingTimer = null;
+
 // Voice State
 let voiceCurrentState = "idle";
 let speechRecognitionInstance = null;
@@ -186,6 +236,50 @@ function setupEventListeners() {
       handlePushToTalk(false);
     }
   });
+
+  // Phase 3: View Switching and Event Listeners
+  if (tabChat) tabChat.addEventListener("click", () => switchView("chat"));
+  if (tabTasks) tabTasks.addEventListener("click", () => switchView("tasks"));
+  if (tabTools) tabTools.addEventListener("click", () => switchView("tools"));
+
+  if (runTaskBtn) runTaskBtn.addEventListener("click", runNewTask);
+  if (taskPromptInput) {
+    taskPromptInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runNewTask();
+      }
+    });
+  }
+
+  if (refreshTasksBtn) refreshTasksBtn.addEventListener("click", loadTasks);
+  if (taskCancelBtn) taskCancelBtn.addEventListener("click", handleCancelTask);
+  if (approveStepBtn) approveStepBtn.addEventListener("click", () => handleApproveStep(true));
+  if (rejectStepBtn) rejectStepBtn.addEventListener("click", () => handleApproveStep(false));
+
+  if (addMcpBtn) {
+    addMcpBtn.addEventListener("click", () => {
+      mcpModal.classList.remove("hidden");
+    });
+  }
+  if (closeMcpModalBtn) {
+    closeMcpModalBtn.addEventListener("click", () => {
+      mcpModal.classList.add("hidden");
+    });
+  }
+  if (mcpTransportSelect) {
+    mcpTransportSelect.addEventListener("change", (e) => {
+      if (e.target.value === "sse") {
+        mcpStdioFields.classList.add("hidden");
+        mcpSseFields.classList.remove("hidden");
+      } else {
+        mcpStdioFields.classList.remove("hidden");
+        mcpSseFields.classList.add("hidden");
+      }
+    });
+  }
+  if (submitMcpBtn) submitMcpBtn.addEventListener("click", handleCreateMcpServer);
+  if (refreshAuditBtn) refreshAuditBtn.addEventListener("click", loadAuditTrail);
 }
 
 // Load Profiles
@@ -880,6 +974,479 @@ async function handleClearAllData() {
     settingsModal.classList.add("hidden");
     createNewConversation();
     await loadConversations();
+  }
+}
+
+// --- Phase 3: View Switching ---
+
+function switchView(viewName) {
+  activeView = viewName;
+
+  const tabs = [
+    { name: "chat", el: tabChat },
+    { name: "tasks", el: tabTasks },
+    { name: "tools", el: tabTools },
+  ];
+  tabs.forEach((t) => {
+    if (!t.el) return;
+    if (t.name === viewName) {
+      t.el.className = "px-3 py-1 rounded-lg font-medium bg-blue-600 text-white shadow-sm transition-all";
+    } else {
+      t.el.className = "px-3 py-1 rounded-lg font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all";
+    }
+  });
+
+  if (viewChat) viewChat.classList.toggle("hidden", viewName !== "chat");
+  if (viewTasks) viewTasks.classList.toggle("hidden", viewName !== "tasks");
+  if (viewTools) viewTools.classList.toggle("hidden", viewName !== "tools");
+
+  if (viewName === "tasks") {
+    loadTasks();
+    if (!taskPollingTimer) {
+      taskPollingTimer = setInterval(loadTasks, 3000);
+    }
+  } else {
+    if (taskPollingTimer) {
+      clearInterval(taskPollingTimer);
+      taskPollingTimer = null;
+    }
+  }
+
+  if (viewName === "tools") {
+    loadTools();
+    loadMcpServers();
+    loadAuditTrail();
+  }
+}
+
+// --- Phase 3: Task Workspace ---
+
+async function loadTasks() {
+  try {
+    const res = await fetch("/api/v1/tasks");
+    if (!res.ok) return;
+    const tasks = await res.json();
+
+    const badge = document.getElementById("tasks-badge-count");
+    if (badge) {
+      const activeCount = tasks.filter(t => ["running", "waiting_approval", "planning"].includes(t.status)).length;
+      if (activeCount > 0) {
+        badge.textContent = activeCount;
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }
+
+    if (!tasksList) return;
+    if (tasks.length === 0) {
+      tasksList.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs">No tasks yet.</div>`;
+      return;
+    }
+
+    tasksList.innerHTML = tasks
+      .map((t) => {
+        const isSelected = t.id === currentTaskId;
+        const statusColors = {
+          pending: "bg-slate-800 text-slate-400 border-slate-700",
+          planning: "bg-cyan-950 text-cyan-400 border-cyan-800",
+          running: "bg-blue-950 text-blue-400 border-blue-800",
+          waiting_approval: "bg-amber-950 text-amber-400 border-amber-800 animate-pulse",
+          completed: "bg-emerald-950 text-emerald-400 border-emerald-800",
+          failed: "bg-red-950 text-red-400 border-red-800",
+          cancelled: "bg-slate-900 text-slate-500 border-slate-800",
+        };
+        const badgeCls = statusColors[t.status] || "bg-slate-800 text-slate-400";
+        return `
+          <div onclick="selectTask('${t.id}')" class="p-2.5 rounded-xl border transition-all cursor-pointer ${
+            isSelected
+              ? "bg-slate-800/90 border-cyan-500/80 shadow-md"
+              : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+          }">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${badgeCls} uppercase">
+                ${t.status.replace("_", " ")}
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">
+                ${new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <div class="text-xs text-slate-200 font-medium truncate">${escapeHtml(t.prompt)}</div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+              <span>Steps: ${t.plan ? t.plan.length : 0}</span>
+              <span>Artifacts: ${t.artifacts ? t.artifacts.length : 0}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    if (currentTaskId) {
+      const active = tasks.find(t => t.id === currentTaskId);
+      if (active) renderTaskDetail(active);
+    }
+  } catch (err) {
+    console.error("Failed to load tasks:", err);
+  }
+}
+
+async function selectTask(taskId) {
+  currentTaskId = taskId;
+  try {
+    const res = await fetch(`/api/v1/tasks/${taskId}`);
+    if (res.ok) {
+      const task = await res.json();
+      renderTaskDetail(task);
+      loadTasks();
+    }
+  } catch (err) {
+    console.error("Error selecting task:", err);
+  }
+}
+
+function renderTaskDetail(task) {
+  if (!noTaskSelected || !taskDetailContent) return;
+  noTaskSelected.classList.add("hidden");
+  taskDetailContent.classList.remove("hidden");
+
+  taskDetailPrompt.textContent = task.prompt;
+  taskDetailTime.textContent = new Date(task.created_at).toLocaleString();
+
+  const statusColors = {
+    pending: "bg-slate-800 text-slate-300 border-slate-700",
+    planning: "bg-cyan-950 text-cyan-300 border-cyan-800",
+    running: "bg-blue-950 text-blue-300 border-blue-800",
+    waiting_approval: "bg-amber-950 text-amber-300 border-amber-800 animate-pulse",
+    completed: "bg-emerald-950 text-emerald-300 border-emerald-800",
+    failed: "bg-red-950 text-red-300 border-red-800",
+    cancelled: "bg-slate-900 text-slate-500 border-slate-800",
+  };
+  taskDetailStatus.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase border ${
+    statusColors[task.status] || "bg-slate-800 text-slate-300"
+  }`;
+  taskDetailStatus.textContent = task.status.replace("_", " ");
+
+  // Approval Gate Card
+  if (task.status === "waiting_approval") {
+    const waitingStep = task.plan.find(s => s.status === "waiting_approval");
+    if (waitingStep) {
+      currentPendingStepId = waitingStep.step_id;
+      approvalGateCard.classList.remove("hidden");
+      approvalGateDesc.textContent = `Step ${waitingStep.step_id}: '${waitingStep.title}' is classified as Risk Level ${waitingStep.risk_level} and requires explicit approval to proceed.`;
+      approvalGatePayload.textContent = JSON.stringify({
+        tool: waitingStep.tool_name,
+        risk_level: waitingStep.risk_level,
+        arguments: waitingStep.arguments,
+      }, null, 2);
+    }
+  } else {
+    approvalGateCard.classList.add("hidden");
+    currentPendingStepId = null;
+  }
+
+  // Plan Timeline
+  if (!task.plan || task.plan.length === 0) {
+    taskStepsTimeline.innerHTML = `<div class="text-xs text-slate-500 italic p-3">Generating execution plan...</div>`;
+  } else {
+    taskStepsTimeline.innerHTML = task.plan.map((s) => {
+      const riskClass = `badge-${s.risk_level.toLowerCase()}`;
+      const stepStatusIcons = {
+        pending: "⏳",
+        running: "⚡",
+        waiting_approval: "⚠️",
+        completed: "✅",
+        failed: "❌",
+        rejected: "🚫",
+      };
+      return `
+        <div class="relative bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-slate-400">#${s.step_id}</span>
+              <span class="text-xs font-semibold text-slate-100">${escapeHtml(s.title)}</span>
+              <span class="px-2 py-0.2 text-[10px] rounded-full font-semibold font-mono ${riskClass}">
+                ${s.risk_level}
+              </span>
+            </div>
+            <div class="flex items-center space-x-1.5 text-xs font-medium text-slate-400">
+              <span>${stepStatusIcons[s.status] || "●"}</span>
+              <span class="capitalize">${s.status.replace("_", " ")}</span>
+            </div>
+          </div>
+          ${s.tool_name ? `<div class="text-[11px] text-cyan-400 font-mono">tool: ${s.tool_name}</div>` : ""}
+          ${s.result ? `
+            <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-36">
+              ${escapeHtml(s.result)}
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }).join("");
+  }
+
+  // Artifacts
+  if (task.artifacts && task.artifacts.length > 0) {
+    taskArtifactsSection.classList.remove("hidden");
+    taskArtifactsList.innerHTML = task.artifacts.map(a => `
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-lg bg-cyan-950 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">
+          ${a.type === "file" ? "📄" : "📝"}
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-medium text-slate-200 truncate">${escapeHtml(a.path || a.title || "Artifact")}</div>
+          <div class="text-[10px] text-slate-500 font-mono">${escapeHtml(a.type || "file")} • ${escapeHtml(a.action || "created")}</div>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    taskArtifactsSection.classList.add("hidden");
+  }
+}
+
+async function runNewTask() {
+  if (!taskPromptInput) return;
+  const prompt = taskPromptInput.value.trim();
+  if (!prompt) return;
+
+  try {
+    const res = await fetch("/api/v1/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, conversation_id: currentConversationId || "default" }),
+    });
+    if (res.ok) {
+      const task = await res.json();
+      taskPromptInput.value = "";
+      currentTaskId = task.id;
+      renderTaskDetail(task);
+      await loadTasks();
+    }
+  } catch (err) {
+    console.error("Failed to run task:", err);
+  }
+}
+
+async function handleApproveStep(approved) {
+  if (!currentTaskId || !currentPendingStepId) return;
+  try {
+    const res = await fetch(`/api/v1/tasks/${currentTaskId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task_id: currentTaskId,
+        step_id: currentPendingStepId,
+        approved,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      renderTaskDetail(updated);
+      await loadTasks();
+    }
+  } catch (err) {
+    console.error("Failed to submit approval:", err);
+  }
+}
+
+async function handleCancelTask() {
+  if (!currentTaskId) return;
+  try {
+    const res = await fetch(`/api/v1/tasks/${currentTaskId}/cancel`, { method: "POST" });
+    if (res.ok) {
+      const updated = await res.json();
+      renderTaskDetail(updated);
+      await loadTasks();
+    }
+  } catch (err) {
+    console.error("Failed to cancel task:", err);
+  }
+}
+
+// --- Phase 3: Tools & MCP Management ---
+
+async function loadTools() {
+  try {
+    const res = await fetch("/api/v1/tools");
+    if (!res.ok) return;
+    const tools = await res.json();
+
+    if (toolsCatalogCount) {
+      toolsCatalogCount.textContent = `${tools.length} tools registered`;
+    }
+
+    if (!toolsCatalogGrid) return;
+    toolsCatalogGrid.innerHTML = tools.map(t => {
+      const riskClass = `badge-${t.risk_level.toLowerCase()}`;
+      return `
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-bold text-xs text-white font-mono">${escapeHtml(t.name)}</span>
+              <span class="px-2 py-0.2 rounded-full text-[10px] font-semibold font-mono ${riskClass}">
+                ${t.risk_level}
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 line-clamp-2">${escapeHtml(t.description)}</p>
+          </div>
+          <div class="text-[10px] text-slate-500 font-mono truncate">
+            args: ${Object.keys(t.parameters?.properties || {}).join(", ") || "none"}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Failed to load tools:", err);
+  }
+}
+
+async function loadMcpServers() {
+  try {
+    const res = await fetch("/api/v1/mcp/servers");
+    if (!res.ok) return;
+    const servers = await res.json();
+
+    if (!mcpServersGrid) return;
+    if (servers.length === 0) {
+      mcpServersGrid.innerHTML = `
+        <div class="col-span-full p-4 bg-slate-950/60 border border-slate-800/80 rounded-xl text-center text-xs text-slate-500">
+          No external MCP servers configured. Click 'Connect MCP Server' to bridge community servers.
+        </div>
+      `;
+      return;
+    }
+
+    mcpServersGrid.innerHTML = servers.map(s => `
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full ${s.connected ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+            <span class="text-xs font-bold text-white">${escapeHtml(s.name)}</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono uppercase">${s.transport}</span>
+          </div>
+          <div class="text-[11px] text-slate-500 font-mono mt-1">
+            ${escapeHtml(s.command ? `${s.command} ${(s.args || []).join(' ')}` : s.url || '')}
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          ${s.connected ? `
+            <button onclick="handleDisconnectMcpServer('${s.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg transition-colors">
+              Disconnect
+            </button>
+          ` : `
+            <button onclick="handleConnectMcpServer('${s.id}')" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg transition-colors">
+              Connect
+            </button>
+          `}
+          <button onclick="handleDeleteMcpServer('${s.id}')" class="text-xs text-red-400 hover:text-red-300 p-1" title="Delete server">
+            ✕
+          </button>
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("Failed to load MCP servers:", err);
+  }
+}
+
+async function handleCreateMcpServer() {
+  const name = mcpNameInput.value.trim();
+  const transport = mcpTransportSelect.value;
+  if (!name) return;
+
+  const payload = {
+    name,
+    transport,
+    auto_connect: true,
+  };
+
+  if (transport === "stdio") {
+    payload.command = mcpCommandInput.value.trim();
+    const argsRaw = mcpArgsInput.value.trim();
+    if (argsRaw) {
+      try {
+        payload.args = JSON.parse(argsRaw);
+      } catch {
+        payload.args = argsRaw.split(" ").filter(Boolean);
+      }
+    }
+  } else {
+    payload.url = mcpUrlInput.value.trim();
+  }
+
+  try {
+    const res = await fetch("/api/v1/mcp/servers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      mcpModal.classList.add("hidden");
+      mcpNameInput.value = "";
+      mcpCommandInput.value = "";
+      mcpArgsInput.value = "";
+      mcpUrlInput.value = "";
+      await loadMcpServers();
+      await loadTools();
+    }
+  } catch (err) {
+    console.error("Failed to add MCP server:", err);
+  }
+}
+
+async function handleConnectMcpServer(id) {
+  await fetch(`/api/v1/mcp/servers/${id}/connect`, { method: "POST" });
+  await loadMcpServers();
+  await loadTools();
+}
+
+async function handleDisconnectMcpServer(id) {
+  await fetch(`/api/v1/mcp/servers/${id}/disconnect`, { method: "POST" });
+  await loadMcpServers();
+  await loadTools();
+}
+
+async function handleDeleteMcpServer(id) {
+  if (confirm("Remove this MCP server?")) {
+    await fetch(`/api/v1/mcp/servers/${id}`, { method: "DELETE" });
+    await loadMcpServers();
+    await loadTools();
+  }
+}
+
+async function loadAuditTrail() {
+  try {
+    const res = await fetch("/api/v1/tools/audit");
+    if (!res.ok) return;
+    const records = await res.json();
+
+    if (!auditTableBody) return;
+    if (records.length === 0) {
+      auditTableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">No tool actions recorded in audit log yet.</td></tr>`;
+      return;
+    }
+
+    auditTableBody.innerHTML = records.slice(-50).reverse().map(r => {
+      const riskClass = `badge-${r.risk_level.toLowerCase()}`;
+      return `
+        <tr class="hover:bg-slate-800/40 transition-colors">
+          <td class="p-2.5 text-slate-400 whitespace-nowrap">${new Date(r.timestamp).toLocaleTimeString()}</td>
+          <td class="p-2.5 font-bold text-cyan-300">${escapeHtml(r.tool_name)}</td>
+          <td class="p-2.5">
+            <span class="px-1.5 py-0.2 rounded font-semibold ${riskClass}">${r.risk_level}</span>
+          </td>
+          <td class="p-2.5">
+            <span class="${r.is_error ? 'text-red-400' : 'text-emerald-400'}">
+              ${r.is_error ? 'ERROR' : (r.approved ? 'APPROVED' : 'BLOCKED')}
+            </span>
+          </td>
+          <td class="p-2.5 text-slate-300 truncate max-w-xs font-mono text-[10px]">
+            ${escapeHtml(r.result || JSON.stringify(r.arguments))}
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Failed to load audit trail:", err);
   }
 }
 
