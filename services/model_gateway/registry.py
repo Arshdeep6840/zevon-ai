@@ -134,6 +134,14 @@ class ModelRegistry:
                 return m
         return models[0] if models else None
 
+    async def get_active_provider(self) -> BaseModelProvider | None:
+        """Return the active model provider (Ollama if available, otherwise offline embedded)."""
+        if not self.force_offline:
+            ollama_provider = self.providers.get("ollama")
+            if ollama_provider and await ollama_provider.check_health():
+                return ollama_provider
+        return self.providers.get("offline-embedded")
+
     async def check_health(self) -> dict[str, Any]:
         hw = HardwareProfile.get_hardware_info()
         provider_health = {}
@@ -163,6 +171,10 @@ class ModelRegistry:
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
         target_model_id = model_name or self.active_model_id
+        if not target_model_id:
+            active_card = await self.get_active_model()
+            if active_card:
+                target_model_id = active_card.id
 
         # Determine target provider
         selected_provider: BaseModelProvider | None = None
@@ -173,6 +185,9 @@ class ModelRegistry:
                 ollama_models = await ollama_provider.list_models()
                 if any(m.id == target_model_id for m in ollama_models):
                     selected_provider = ollama_provider
+                elif ollama_models:
+                    selected_provider = ollama_provider
+                    target_model_id = ollama_models[0].id
 
         # Fallback to offline mock provider
         if not selected_provider:

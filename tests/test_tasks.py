@@ -59,6 +59,19 @@ async def test_task_planner_heuristics(temp_workspace: Path):
     assert plan3[0].tool_name == "file_delete"
     assert plan3[0].risk_level == RiskLevel.R2
 
+    # 4. File creation with concatenated/fuzzy prompt
+    plan4 = await planner.plan("createmdfileforcatculaterproject")
+    assert len(plan4) == 1
+    assert plan4[0].tool_name == "file_write"
+    assert plan4[0].arguments.get("path") == "calculator.md"
+    assert plan4[0].risk_level == RiskLevel.R1
+
+    # 5. File deletion with typo/concatenation
+    plan5 = await planner.plan("dleteafile")
+    assert len(plan5) == 1
+    assert plan5[0].tool_name == "file_delete"
+    assert plan5[0].risk_level == RiskLevel.R2
+
 
 @pytest.mark.asyncio
 async def test_orchestrator_auto_execution(orchestrator: TaskOrchestrator):
