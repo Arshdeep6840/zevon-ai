@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zevon"
+version = "0.1.0"
+description = "Local-first, voice-enabled, model-agnostic personal AI assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Zevon Contributors" }
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.5.0",
+    "httpx>=0.27.0",
+    "aiosqlite>=0.20.0",
+    "sqlalchemy>=2.0.35",
+    "websockets>=13.1",
+    "python-multipart>=0.0.12",
+    "jinja2>=3.1.4",
+    "psutil>=6.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+    "mcp>=1.0.0"
+]
+
+[project.scripts]
+zevon = "services.api.main:start"
+
+[tool.hatch.build.targets.wheel]
+packages = ["services", "packages"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
