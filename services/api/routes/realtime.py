@@ -127,4 +127,5 @@ async def realtime_chat_socket(websocket: WebSocket):
                 active_stream_task = asyncio.create_task(process_chat(conversation_id, user_text))
 
     except WebSocketDisconnect:
-        if active_stream_task and not active_stream_task.done(
+        if active_stream_task and not active_stream_task.done():
+            active_stream_task.cancel()
